@@ -18,8 +18,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
 	VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
 	const VkDebugUtilsMessengerCallbackDataEXT*  pCallbackData,
 	void*                                        pUserData
-)
-{
+) {
 #if !defined(NDEBUG)
 	if (pCallbackData->messageIdNumber == 648835635) {
 		// UNASSIGNED-khronos-Validation-debug-build-warning-message
@@ -137,7 +136,7 @@ vk::raii::DeviceMemory allocateDeviceMemory(
 	const vk::MemoryRequirements&             memoryRequirements,
 	vk::MemoryPropertyFlags                   memoryPropertyFlags
 ) {
-	const uint32_t memoryTypeIndex = vk::su::findMemoryType(memoryProperties, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
+	const uint32_t memoryTypeIndex = findMemoryType(memoryProperties, memoryRequirements.memoryTypeBits, memoryPropertyFlags);
 	const auto memoryAllocateInfo = vk::MemoryAllocateInfo(memoryRequirements.size, memoryTypeIndex);
 	return vk::raii::DeviceMemory(device, memoryAllocateInfo);
 }
@@ -294,8 +293,8 @@ std::unique_ptr<vk::raii::Device> makeDevice(
 
 uint32_t findGraphicsQueueFamilyIndex(const std::vector<vk::QueueFamilyProperties>& queueFamilyProperties) {
 	// get the first index into queueFamiliyProperties which supports graphics
-	const auto graphicsQueueFamilyProperty = std::rages::find_if(queueFamilyProperties, [](const vk::QueueFamilyProperties& qfp) {
-		return qfp.queueFlags & vk::QueueFlagBits::eGraphics;
+	const auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](const vk::QueueFamilyProperties& qfp) {
+		return static_cast<bool>(qfp.queueFlags & vk::QueueFlagBits::eGraphics);
 	});
 
 	assert(graphicsQueueFamilyProperty != queueFamilyProperties.end());

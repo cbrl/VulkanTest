@@ -291,8 +291,8 @@ public:
 		vk::BufferUsageFlags            usage,
 		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
 	) : count(count),
-		usage(usage),
-		property_flags(property_flags) {
+	    usage(usage),
+	    property_flags(property_flags) {
 
 		assert(count);
 		buffer        = std::make_unique<vk::raii::Buffer>(device, vk::BufferCreateInfo({}, sizeof(T) * count, usage));
@@ -368,6 +368,97 @@ public:
 };
 
 
+class Image {
+public:
+	Image(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		vk::Format                      format,
+		const vk::Extent2D&             extent,
+		vk::ImageTiling                 tiling,
+		vk::ImageUsageFlags             usage,
+		vk::ImageLayout                 initial_layout,
+		vk::MemoryPropertyFlags         memory_properties,
+		vk::ImageAspectFlags            aspect_mask
+	) : format(format) {
+		const auto image_create_info = vk::ImageCreateInfo(
+			vk::ImageCreateFlags(),
+			vk::ImageType::e2D,
+			format,
+			vk::Extent3D(extent, 1),
+			1,
+			1,
+			vk::SampleCountFlagBits::e1,
+			tiling,
+			usage | vk::ImageUsageFlagBits::eSampled,
+			vk::SharingMode::eExclusive,
+			{},
+			initial_layout
+		);
+
+		image = std::make_unique<vk::raii::Image>(device, image_create_info);
+
+		device_memory = std::make_unique<vk::raii::DeviceMemory>(
+			allocateDeviceMemory(
+				device,
+				physical_device.getMemoryProperties(),
+				image->getMemoryRequirements(),
+				memory_properties
+			)
+		);
+
+		image->bindMemory(**device_memory, 0);
+
+		const auto component_mapping = vk::ComponentMapping(
+			vk::ComponentSwizzle::eR,
+			vk::ComponentSwizzle::eG,
+			vk::ComponentSwizzle::eB,
+			vk::ComponentSwizzle::eA
+		);
+	
+		const auto image_subresource_range = vk::ImageSubresourceRange(aspect_mask, 0, 1, 0, 1);
+		const auto image_view_create_info = vk::ImageViewCreateInfo(
+			{},
+			**image,
+			vk::ImageViewType::e2D,
+			format,
+			component_mapping,
+			image_subresource_range
+		);
+
+		image_view = std::make_unique<vk::raii::ImageView>(device, image_view_create_info);
+	}
+
+//private:
+	vk::Format                              format;
+	std::unique_ptr<vk::raii::Image>        image;
+	std::unique_ptr<vk::raii::DeviceMemory> device_memory;
+	std::unique_ptr<vk::raii::ImageView>    image_view;
+};
+
+
+class DepthBuffer : public Image {
+public:
+	DepthBuffer(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		vk::Format                      format,
+		const vk::Extent2D&             extent
+	) : Image(
+			physical_device,
+			device,
+			format,
+			extent,
+			vk::ImageTiling::eOptimal,
+			vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			vk::ImageLayout::eUndefined,
+			vk::MemoryPropertyFlagBits::eDeviceLocal,
+			vk::ImageAspectFlagBits::eDepth
+		) {
+	}
+};
+
+
 int main(int argc, char** argv) {
 	glfwInit();
 
@@ -384,7 +475,7 @@ int main(int argc, char** argv) {
 	auto cmd_buffer_pool = CommandBufferPool(context);
 
 	// Depth Buffer
-	auto depthBufferData = vk::raii::su::DepthBufferData(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.surface->window.size);
+	auto depth_buffer = DepthBuffer(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.surface->window.size);
 
 	// Model Uniform Buffer
 	auto uniform_buffer = Buffer<glm::mat4>(*context.physical_device, *context.device, 1, vk::BufferUsageFlagBits::eUniformBuffer);
@@ -396,7 +487,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = vk::raii::su::makeUniquePipelineLayout(*context.device, *descriptorSetLayout);
 
 	// Render Pass
-	std::unique_ptr<vk::raii::RenderPass> renderPass = vk::raii::su::makeUniqueRenderPass(*context.device, swap_chain.color_format, depthBufferData.format);
+	std::unique_ptr<vk::raii::RenderPass> renderPass = vk::raii::su::makeUniqueRenderPass(*context.device, swap_chain.color_format, depth_buffer.format);
 
 	// Compile Shaders
     glslang::InitializeProcess();
@@ -405,7 +496,7 @@ int main(int argc, char** argv) {
     glslang::FinalizeProcess();
 
 	// Framebuffers
-	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = vk::raii::su::makeUniqueFramebuffers(*context.device, *renderPass, swap_chain.image_views, depthBufferData.imageView, context.surface->window.size);
+	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = vk::raii::su::makeUniqueFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.surface->window.size);
 
 	// Vertex Buffer
 	//vk::raii::su::BufferData vertexBufferData(*context.physical_device, *device, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
@@ -415,7 +506,7 @@ int main(int argc, char** argv) {
 
 	// Allocate memory for the vertex buffer
     vk::MemoryRequirements memoryRequirements = vertexBuffer->getMemoryRequirements();
-    uint32_t               memoryTypeIndex = vk::su::findMemoryType(
+    uint32_t               memoryTypeIndex = findMemoryType(
 		context.physical_device->getMemoryProperties(),
 		memoryRequirements.memoryTypeBits,
 		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
@@ -437,7 +528,7 @@ int main(int argc, char** argv) {
     vk::raii::su::updateDescriptorSets(*context.device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniform_buffer.buffer, nullptr}}, {});
 
 	// Pipeline
-	std::unique_ptr<vk::raii::PipelineCache> pipelineCache = vk::raii::su::make_unique<vk::raii::PipelineCache>(*context.device, vk::PipelineCacheCreateInfo());
+	std::unique_ptr<vk::raii::PipelineCache> pipelineCache = std::make_unique<vk::raii::PipelineCache>(*context.device, vk::PipelineCacheCreateInfo());
     std::unique_ptr<vk::raii::Pipeline> graphicsPipeline = vk::raii::su::makeUniqueGraphicsPipeline(
     	*context.device,
     	*pipelineCache,
@@ -496,7 +587,7 @@ int main(int argc, char** argv) {
 
 	// Submit and wait
     //vk::raii::su::submitAndWait(*context.device, *context.graphics_queue, *cmd_buffer_pool.buffer);
-	std::unique_ptr<vk::raii::Fence> drawFence = vk::raii::su::make_unique<vk::raii::Fence>(*context.device, vk::FenceCreateInfo());
+	std::unique_ptr<vk::raii::Fence> drawFence = std::make_unique<vk::raii::Fence>(*context.device, vk::FenceCreateInfo());
 	vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
     vk::SubmitInfo         submitInfo(**imageAcquiredSemaphore, waitDestinationStageMask, **cmd_buffer_pool.buffer);
     context.graphics_queue->submit(submitInfo, **drawFence);

@@ -4,6 +4,7 @@ project(VulkanTest)
 # Find required packages
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(glm REQUIRED)
 set(VULKAN_SDK_INCLUDE_DIRS $ENV{VULKAN_SDK}/Include)
 
 # Release/Debug options
@@ -35,13 +36,19 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES} VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 
 # Include folders
-target_include_directories(${PROJECT_NAME} PRIVATE src)
-target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} PRIVATE ${VULKAN_SDK_INCLUDE_DIRS})
-target_include_directories(${PROJECT_NAME} PRIVATE ${VULKAN_HPP_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PRIVATE
+	src
+	${Vulkan_INCLUDE_DIRS}
+	${VULKAN_SDK_INCLUDE_DIRS}
+	${VULKAN_HPP_INCLUDE_DIRS}
+)
 
 # Link libraries
-#target_link_directories(${PROJECT_NAME} PRIVATE $ENV{VULKAN_SDK}/Lib)
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
-target_link_libraries(${PROJECT_NAME} PRIVATE SPIRV)
-target_link_libraries(${PROJECT_NAME} PRIVATE glslang glslang-default-resource-limits)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+	glfw
+	glm::glm
+	SPIRV
+	glslang
+	glslang-default-resource-limits
+	#$ENV{VULKAN_SDK}/Lib
+)
