@@ -730,6 +730,19 @@ public:
 		device_memory->unmapMemory();
 	}
 
+	template<size_t N>
+	void upload(const T (&data)[N]) const {
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
+		assert(N <= count);
+
+		const size_t data_size = N * sizeof(T);
+		
+		void* mapped = device_memory->mapMemory(0, data_size);
+		std::memcpy(mapped, data, data_size);
+        device_memory->unmapMemory();
+	}
+
 	void upload(const std::vector<T>& data) const {
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);

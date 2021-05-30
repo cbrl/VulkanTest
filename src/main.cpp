@@ -321,13 +321,11 @@ int main(int argc, char** argv) {
 	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = makeFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.surface->window.size);
 
 	// Vertex Buffer
-	//vk::raii::su::BufferData vertexBufferData(*context.physical_device, *device, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
-    //vk::raii::su::copyToDevice(*vertexBufferData.deviceMemory, coloredCubeData, sizeof(coloredCubeData) / sizeof(coloredCubeData[0]));
-	const auto bufferCreateInfo = vk::BufferCreateInfo({}, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
-	std::unique_ptr<vk::raii::Buffer> vertexBuffer = std::make_unique<vk::raii::Buffer>(*context.device, bufferCreateInfo);
+	auto vertexBuffer = Buffer<VertexPC>(*context.physical_device, *context.device, std::size(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
+	vertexBuffer.upload(coloredCubeData);
 
 	// Allocate memory for the vertex buffer
-    const auto memoryRequirements = vertexBuffer->getMemoryRequirements();
+    const auto memoryRequirements = vertexBuffer.buffer->getMemoryRequirements();
     const uint32_t memoryTypeIndex = findMemoryType(
 		context.physical_device->getMemoryProperties(),
 		memoryRequirements.memoryTypeBits,
@@ -341,9 +339,6 @@ int main(int argc, char** argv) {
     uint8_t* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
     std::memcpy(pData, coloredCubeData, sizeof(coloredCubeData));
     deviceMemory->unmapMemory();
-
-	// Bind device memory to the vertex buffer
-	vertexBuffer->bindMemory(**deviceMemory, 0);
 
 	// Descriptor Set
     std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = makeDescriptorPool(*context.device, {{vk::DescriptorType::eUniformBuffer, 1}});
@@ -388,7 +383,7 @@ int main(int argc, char** argv) {
     cmd_buffer_pool.buffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **graphicsPipeline);
     cmd_buffer_pool.buffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **pipelineLayout, 0, {**descriptorSet}, nullptr);
 
-    cmd_buffer_pool.buffer->bindVertexBuffers(0, {**vertexBuffer}, {0});
+    cmd_buffer_pool.buffer->bindVertexBuffers(0, {**vertexBuffer.buffer}, {0});
 
     cmd_buffer_pool.buffer->setViewport(
 		0,
