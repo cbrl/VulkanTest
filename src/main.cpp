@@ -524,7 +524,7 @@ int main(int argc, char** argv) {
 
 	// Descriptor Set
     std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = vk::raii::su::makeUniqueDescriptorPool(*context.device, {{vk::DescriptorType::eUniformBuffer, 1}});
-    std::unique_ptr<vk::raii::DescriptorSet> descriptorSet = vk::raii::su::makeUniqueDescriptorSet(*context.device, *descriptorPool, *descriptorSetLayout);
+    std::unique_ptr<vk::raii::DescriptorSet> descriptorSet = vk::raii::su::makeUniqueDescriptorSet(*context.device, *descriptorPool, *descriptor_set_layout);
     vk::raii::su::updateDescriptorSets(*context.device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniform_buffer.buffer, nullptr}}, {});
 
 	// Pipeline
