@@ -201,7 +201,7 @@ std::vector<const char*> gatherExtensions(
 	const bool has_debug_utils = std::ranges::find(extensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != extensions.end();
 
 	const bool debug_utils_exist = std::ranges::any_of(extensionProperties, [](const vk::ExtensionProperties& ep) {
-			return (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, ep.extensionName) == 0);
+		return (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, ep.extensionName) == 0);
 	});
 
 	if (!has_debug_utils && debug_utils_exist) {
@@ -217,6 +217,7 @@ auto makeInstanceCreateInfoChain(
 	const std::vector<const char*>& layers,
 	const std::vector<const char*>& extensions
 ) {
+	// Return type depends on debug/release build
 #if defined(NDEBUG)
 	using instance_create_chain = vk::StructureChain<vk::InstanceCreateInfo>;
 #else
@@ -224,12 +225,12 @@ auto makeInstanceCreateInfoChain(
 #endif
 
 #if defined(NDEBUG)
-	// in non-debug mode just use the InstanceCreateInfo for instance creation
+	// In release mode just use the InstanceCreateInfo for instance creation
 	const auto instanceCreateInfo = instance_create_chain(
 		{{}, &applicationInfo, enabledLayers, enabledExtensions}
 	);
 #else
-	// in debug mode, addionally use the debugUtilsMessengerCallback in instance creation!
+	// In debug mode, addionally use the debugUtilsMessengerCallback in instance creation
 	const auto severityFlags = vk::DebugUtilsMessageSeverityFlagsEXT(vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
 	const auto messageTypeFlags = vk::DebugUtilsMessageTypeFlagsEXT(
 		vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral     |
@@ -276,7 +277,7 @@ std::unique_ptr<vk::raii::Device> makeDevice(
 	const vk::PhysicalDeviceFeatures* physicalDeviceFeatures = nullptr,
 	const void*                       pNext                  = nullptr
 ) {
-	std::vector<char const *> enabledExtensions;
+	std::vector<const char*> enabledExtensions;
 	enabledExtensions.reserve(extensions.size());
 
 	for (const auto& ext : extensions) {
@@ -289,6 +290,82 @@ std::unique_ptr<vk::raii::Device> makeDevice(
 	deviceCreateInfo.pNext = pNext;
 
 	return std::make_unique<vk::raii::Device>(physicalDevice, deviceCreateInfo);
+}
+
+std::unique_ptr<vk::raii::DescriptorSetLayout> makeDescriptorSetLayout(
+	const vk::raii::Device& device,
+	const std::vector<std::tuple<vk::DescriptorType, uint32_t, vk::ShaderStageFlags>>& binding_data,
+	vk::DescriptorSetLayoutCreateFlags flags = {}
+) {
+	auto bindings = std::vector<vk::DescriptorSetLayoutBinding>(binding_data.size());
+
+	for (size_t i = 0; i < binding_data.size(); i++) {
+		bindings[i] = vk::DescriptorSetLayoutBinding(
+			vk::su::checked_cast<uint32_t>( i ),
+			std::get<0>(binding_data[i]),
+			std::get<1>(binding_data[i]),
+			std::get<2>(binding_data[i])
+		);
+	}
+
+	const auto descriptorSetLayoutCreateInfo = vk::DescriptorSetLayoutCreateInfo(flags, bindings);
+	return std::make_unique<vk::raii::DescriptorSetLayout>(device, descriptorSetLayoutCreateInfo);
+}
+
+std::unique_ptr<vk::raii::PipelineLayout> makePipelineLayout(const vk::raii::Device& device, const vk::raii::DescriptorSetLayout& descriptor_set_layout) {
+	const auto pipeline_layout_create_info = vk::PipelineLayoutCreateInfo(vk::PipelineLayoutCreateFlags(), *descriptor_set_layout);
+	return std::make_unique<vk::raii::PipelineLayout>(device, pipeline_layout_create_info);
+}
+
+std::unique_ptr<vk::raii::RenderPass> makeRenderPass(
+	const vk::raii::Device&  device,
+	vk::Format               color_format,
+	vk::Format               depth_format,
+	vk::AttachmentLoadOp     load_op            = vk::AttachmentLoadOp::eClear,
+	vk::ImageLayout          color_final_layout = vk::ImageLayout::ePresentSrcKHR
+) {
+	assert(color_format != vk::Format::eUndefined);
+	std::vector<vk::AttachmentDescription> attachment_descriptions;
+
+	attachment_descriptions.emplace_back(
+		vk::AttachmentDescriptionFlags(),
+		color_format,
+		vk::SampleCountFlagBits::e1,
+		load_op,
+		vk::AttachmentStoreOp::eStore,
+		vk::AttachmentLoadOp::eDontCare,
+		vk::AttachmentStoreOp::eDontCare,
+		vk::ImageLayout::eUndefined,
+		color_final_layout
+	);
+
+	if (depth_format != vk::Format::eUndefined) {
+		attachment_descriptions.emplace_back(
+			vk::AttachmentDescriptionFlags(),
+			depth_format,
+			vk::SampleCountFlagBits::e1,
+			load_op,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::AttachmentLoadOp::eDontCare,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eDepthStencilAttachmentOptimal
+		);
+	}
+
+	auto color_attachment = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+	auto depth_attachment = vk::AttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+	auto subpass_description = vk::SubpassDescription(
+		vk::SubpassDescriptionFlags(),
+		vk::PipelineBindPoint::eGraphics,
+		{},
+		color_attachment,
+		{},
+		(depth_format != vk::Format::eUndefined) ? &depth_attachment : nullptr
+	);
+
+	const auto render_pass_create_info = vk::RenderPassCreateInfo(vk::RenderPassCreateFlags(), attachment_descriptions, subpass_description);
+	return vk::raii::su::make_unique<vk::raii::RenderPass>(device, render_pass_create_info);
 }
 
 uint32_t findGraphicsQueueFamilyIndex(const std::vector<vk::QueueFamilyProperties>& queueFamilyProperties) {

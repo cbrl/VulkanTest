@@ -483,11 +483,11 @@ int main(int argc, char** argv) {
 	uniform_buffer.upload(mvpc_matrix);
 
 	// Pipeline Layout
-    std::unique_ptr<vk::raii::DescriptorSetLayout> descriptorSetLayout = vk::raii::su::makeUniqueDescriptorSetLayout(*context.device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});
-    std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = vk::raii::su::makeUniquePipelineLayout(*context.device, *descriptorSetLayout);
+    std::unique_ptr<vk::raii::DescriptorSetLayout> descriptor_set_layout = makeDescriptorSetLayout(*context.device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});
+    std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = makePipelineLayout(*context.device, *descriptor_set_layout);
 
 	// Render Pass
-	std::unique_ptr<vk::raii::RenderPass> renderPass = vk::raii::su::makeUniqueRenderPass(*context.device, swap_chain.color_format, depth_buffer.format);
+	std::unique_ptr<vk::raii::RenderPass> renderPass = makeRenderPass(*context.device, swap_chain.color_format, depth_buffer.format);
 
 	// Compile Shaders
     glslang::InitializeProcess();
