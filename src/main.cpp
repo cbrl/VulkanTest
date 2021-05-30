@@ -496,22 +496,23 @@ int main(int argc, char** argv) {
     glslang::FinalizeProcess();
 
 	// Framebuffers
-	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = vk::raii::su::makeUniqueFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.surface->window.size);
+	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = makeFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.surface->window.size);
 
 	// Vertex Buffer
 	//vk::raii::su::BufferData vertexBufferData(*context.physical_device, *device, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
     //vk::raii::su::copyToDevice(*vertexBufferData.deviceMemory, coloredCubeData, sizeof(coloredCubeData) / sizeof(coloredCubeData[0]));
-	vk::BufferCreateInfo bufferCreateInfo({}, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
+	const auto bufferCreateInfo = vk::BufferCreateInfo({}, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
 	std::unique_ptr<vk::raii::Buffer> vertexBuffer = std::make_unique<vk::raii::Buffer>(*context.device, bufferCreateInfo);
 
 	// Allocate memory for the vertex buffer
-    vk::MemoryRequirements memoryRequirements = vertexBuffer->getMemoryRequirements();
-    uint32_t               memoryTypeIndex = findMemoryType(
+    const auto memoryRequirements = vertexBuffer->getMemoryRequirements();
+    const uint32_t memoryTypeIndex = findMemoryType(
 		context.physical_device->getMemoryProperties(),
 		memoryRequirements.memoryTypeBits,
 		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
 	);
-    vk::MemoryAllocateInfo                  memoryAllocateInfo(memoryRequirements.size, memoryTypeIndex);
+
+    const auto memoryAllocateInfo = vk::MemoryAllocateInfo(memoryRequirements.size, memoryTypeIndex);
     std::unique_ptr<vk::raii::DeviceMemory> deviceMemory = std::make_unique<vk::raii::DeviceMemory>(*context.device, memoryAllocateInfo);
 
 	// Copy data into vertex buffer
@@ -523,13 +524,13 @@ int main(int argc, char** argv) {
 	vertexBuffer->bindMemory(**deviceMemory, 0);
 
 	// Descriptor Set
-    std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = vk::raii::su::makeUniqueDescriptorPool(*context.device, {{vk::DescriptorType::eUniformBuffer, 1}});
-    std::unique_ptr<vk::raii::DescriptorSet> descriptorSet = vk::raii::su::makeUniqueDescriptorSet(*context.device, *descriptorPool, *descriptor_set_layout);
-    vk::raii::su::updateDescriptorSets(*context.device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniform_buffer.buffer, nullptr}}, {});
+    std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = makeDescriptorPool(*context.device, {{vk::DescriptorType::eUniformBuffer, 1}});
+    std::unique_ptr<vk::raii::DescriptorSet> descriptorSet = makeDescriptorSet(*context.device, *descriptorPool, *descriptor_set_layout);
+    updateDescriptorSets(*context.device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniform_buffer.buffer, nullptr}}, {});
 
 	// Pipeline
 	std::unique_ptr<vk::raii::PipelineCache> pipelineCache = std::make_unique<vk::raii::PipelineCache>(*context.device, vk::PipelineCacheCreateInfo());
-    std::unique_ptr<vk::raii::Pipeline> graphicsPipeline = vk::raii::su::makeUniqueGraphicsPipeline(
+    std::unique_ptr<vk::raii::Pipeline> graphicsPipeline = makeGraphicsPipeline(
     	*context.device,
     	*pipelineCache,
     	*vertexShaderModule,

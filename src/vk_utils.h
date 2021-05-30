@@ -212,6 +212,47 @@ std::vector<const char*> gatherExtensions(
 	return enabledExtensions;
 }
 
+uint32_t findGraphicsQueueFamilyIndex(const std::vector<vk::QueueFamilyProperties>& queue_family_properties) {
+	// Get the first index into queueFamiliyProperties which supports graphics
+	const auto graphics_queue_family_property = std::ranges::find_if(queue_family_properties, [](const vk::QueueFamilyProperties& qfp) {
+		return static_cast<bool>(qfp.queueFlags & vk::QueueFlagBits::eGraphics);
+	});
+
+	assert(graphics_queue_family_property != queue_family_properties.end());
+
+	return static_cast<uint32_t>(std::distance(queue_family_properties.begin(), graphics_queue_family_property));
+}
+
+std::pair<uint32_t, uint32_t> findGraphicsAndPresentQueueFamilyIndex(const vk::raii::PhysicalDevice& physical_device, const vk::raii::SurfaceKHR& surface) {
+	std::vector<vk::QueueFamilyProperties> queue_family_properties = physical_device.getQueueFamilyProperties();
+
+	assert(queue_family_properties.size() < std::numeric_limits<uint32_t>::max());
+
+	const uint32_t graphics_queue_family_index = findGraphicsQueueFamilyIndex(queue_family_properties);
+	if (physical_device.getSurfaceSupportKHR(graphics_queue_family_index, *surface)) {
+		// The first graphics_queue_family_index also supports present
+		return std::make_pair(graphics_queue_family_index, graphics_queue_family_index);
+	}
+
+	// The graphics_queue_family_index doesn't support present
+	// Look for an other family index that supports both graphics and present
+	for (size_t i = 0; i < queue_family_properties.size(); ++i) {
+		if ((queue_family_properties[i].queueFlags & vk::QueueFlagBits::eGraphics) && physical_device.getSurfaceSupportKHR(static_cast<uint32_t>(i), *surface)) {
+			return std::make_pair(static_cast<uint32_t>(i), static_cast<uint32_t>(i));
+		}
+	}
+
+	// there's nothing like a single family index that supports both graphics and present -> look for an other
+	// family index that supports present
+	for (size_t i = 0; i < queue_family_properties.size(); ++i) {
+		if (physical_device.getSurfaceSupportKHR(static_cast<uint32_t>(i), *surface)) {
+			return std::make_pair(graphics_queue_family_index, static_cast<uint32_t>(i));
+		}
+	}
+
+	throw std::runtime_error("Could not find both graphics and present queues");
+}
+
 auto makeInstanceCreateInfoChain(
 	const vk::ApplicationInfo& applicationInfo,
 	const std::vector<const char*>& layers,
@@ -292,6 +333,40 @@ std::unique_ptr<vk::raii::Device> makeDevice(
 	return std::make_unique<vk::raii::Device>(physicalDevice, deviceCreateInfo);
 }
 
+std::unique_ptr<vk::raii::DescriptorPool> makeDescriptorPool(const vk::raii::Device& device, const std::vector<vk::DescriptorPoolSize>& pool_sizes)
+{
+	assert(!pool_sizes.empty());
+
+	const uint32_t max_sets = std::accumulate(
+		pool_sizes.begin(),
+		pool_sizes.end(),
+		0,
+		[](uint32_t sum, const  vk::DescriptorPoolSize& dps) {
+			return sum + dps.descriptorCount;
+		}
+	);
+	assert(max_sets > 0);
+
+	const auto descriptor_pool_create_info = vk::DescriptorPoolCreateInfo(
+		vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+		max_sets,
+		pool_sizes
+	);
+	return std::make_unique<vk::raii::DescriptorPool>(device, descriptor_pool_create_info);
+}
+
+std::unique_ptr<vk::raii::DescriptorSet> makeDescriptorSet(
+	const vk::raii::Device&              device,
+	const vk::raii::DescriptorPool&      descriptor_pool,
+	const vk::raii::DescriptorSetLayout& descriptor_set_layout
+) {
+	const auto descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo(*descriptor_pool, *descriptor_set_layout);
+
+	return std::make_unique<vk::raii::DescriptorSet>(
+		std::move(vk::raii::DescriptorSets(device, descriptor_set_allocate_info).front())
+	);
+}
+
 std::unique_ptr<vk::raii::DescriptorSetLayout> makeDescriptorSetLayout(
 	const vk::raii::Device& device,
 	const std::vector<std::tuple<vk::DescriptorType, uint32_t, vk::ShaderStageFlags>>& binding_data,
@@ -308,8 +383,8 @@ std::unique_ptr<vk::raii::DescriptorSetLayout> makeDescriptorSetLayout(
 		);
 	}
 
-	const auto descriptorSetLayoutCreateInfo = vk::DescriptorSetLayoutCreateInfo(flags, bindings);
-	return std::make_unique<vk::raii::DescriptorSetLayout>(device, descriptorSetLayoutCreateInfo);
+	const auto descriptor_set_layout_create_info = vk::DescriptorSetLayoutCreateInfo(flags, bindings);
+	return std::make_unique<vk::raii::DescriptorSetLayout>(device, descriptor_set_layout_create_info);
 }
 
 std::unique_ptr<vk::raii::PipelineLayout> makePipelineLayout(const vk::raii::Device& device, const vk::raii::DescriptorSetLayout& descriptor_set_layout) {
@@ -368,44 +443,275 @@ std::unique_ptr<vk::raii::RenderPass> makeRenderPass(
 	return vk::raii::su::make_unique<vk::raii::RenderPass>(device, render_pass_create_info);
 }
 
-uint32_t findGraphicsQueueFamilyIndex(const std::vector<vk::QueueFamilyProperties>& queueFamilyProperties) {
-	// get the first index into queueFamiliyProperties which supports graphics
-	const auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](const vk::QueueFamilyProperties& qfp) {
-		return static_cast<bool>(qfp.queueFlags & vk::QueueFlagBits::eGraphics);
-	});
 
-	assert(graphicsQueueFamilyProperty != queueFamilyProperties.end());
+std::vector<std::unique_ptr<vk::raii::Framebuffer>> makeFramebuffers(
+	const vk::raii::Device&                     device,
+	vk::raii::RenderPass &                      render_pass,
+	const std::vector<vk::raii::ImageView>&     image_views,
+	const std::unique_ptr<vk::raii::ImageView>& depth_image_view,
+	const vk::Extent2D&                         extent
+) {
+	vk::ImageView attachments[2];
+	attachments[1] = depth_image_view ? **depth_image_view : vk::ImageView();
 
-	return static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+	const auto framebuffer_create_info = vk::FramebufferCreateInfo(
+		vk::FramebufferCreateFlags(),
+		*render_pass,
+		depth_image_view ? 2 : 1,
+		attachments,
+		extent.width,
+		extent.height,
+		1
+	);
+
+	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers;
+	framebuffers.reserve(image_views.size());
+	for (const auto& image_view : image_views)
+	{
+		attachments[0] = *image_view;
+		framebuffers.push_back(std::make_unique<vk::raii::Framebuffer>(device, framebuffer_create_info));
+	}
+
+	return framebuffers;
 }
 
-std::pair<uint32_t, uint32_t> findGraphicsAndPresentQueueFamilyIndex(const vk::raii::PhysicalDevice& physicalDevice, const vk::raii::SurfaceKHR& surface) {
-	std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+std::unique_ptr<vk::raii::Pipeline> makeGraphicsPipeline(
+	const vk::raii::Device&                             device,
+	const vk::raii::PipelineCache&                      pipeline_cache,
+	const vk::raii::ShaderModule&                       vertex_shader_module,
+	const vk::SpecializationInfo*                       vertex_shader_specialization_info,
+	const vk::raii::ShaderModule&                       fragment_shader_module,
+	const vk::SpecializationInfo*                       fragment_shader_specialization_info,
+	uint32_t                                            vertex_stride,
+	const std::vector<std::pair<vk::Format, uint32_t>>& vertex_input_attribute_format_offset,
+	vk::FrontFace                                       front_face,
+	bool                                                depth_buffered,
+	const vk::raii::PipelineLayout&                     pipeline_layout,
+	const vk::raii::RenderPass&                         render_pass
+) {
+	auto pipeline_shader_stage_create_infos = std::array<vk::PipelineShaderStageCreateInfo, 2>{
+		vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eVertex, *vertex_shader_module, "main", vertex_shader_specialization_info),
+		vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eFragment, *fragment_shader_module, "main", fragment_shader_specialization_info)
+	};
 
-	assert(queueFamilyProperties.size() < std::numeric_limits<uint32_t>::max());
+	auto vertex_input_attribute_descriptions     = std::vector<vk::VertexInputAttributeDescription>{};
+	auto pipeline_vertex_input_state_create_info = vk::PipelineVertexInputStateCreateInfo{};
+	const auto vertex_input_binding_description  = vk::VertexInputBindingDescription(0, vertex_stride);
 
-	const uint32_t graphicsQueueFamilyIndex = findGraphicsQueueFamilyIndex(queueFamilyProperties);
-	if (physicalDevice.getSurfaceSupportKHR(graphicsQueueFamilyIndex, *surface)) {
-		return std::make_pair(
-		graphicsQueueFamilyIndex,
-		graphicsQueueFamilyIndex );  //the first graphicsQueueFamilyIndex does also support presents
-	}
+	if (vertex_stride > 0) {
+		vertex_input_attribute_descriptions.reserve(vertex_input_attribute_format_offset.size());
 
-	// the graphicsQueueFamilyIndex doesn't support present -> look for an other family index that supports both
-	// graphics and present
-	for (size_t i = 0; i < queueFamilyProperties.size(); ++i) {
-		if ((queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) && physicalDevice.getSurfaceSupportKHR(static_cast<uint32_t>(i), *surface)) {
-			return std::make_pair(static_cast<uint32_t>(i), static_cast<uint32_t>(i));
+		for (uint32_t i = 0; i < vertex_input_attribute_format_offset.size(); i++) {
+			vertex_input_attribute_descriptions.emplace_back(
+				i,
+				0,
+				vertex_input_attribute_format_offset[i].first,
+				vertex_input_attribute_format_offset[i].second
+			);
 		}
+	
+		pipeline_vertex_input_state_create_info.setVertexBindingDescriptions(vertex_input_binding_description);
+		pipeline_vertex_input_state_create_info.setVertexAttributeDescriptions(vertex_input_attribute_descriptions);
 	}
 
-	// there's nothing like a single family index that supports both graphics and present -> look for an other
-	// family index that supports present
-	for (size_t i = 0; i < queueFamilyProperties.size(); ++i) {
-		if (physicalDevice.getSurfaceSupportKHR(static_cast<uint32_t>(i), *surface)) {
-			return std::make_pair(graphicsQueueFamilyIndex, static_cast<uint32_t>(i));
+	const auto pipeline_input_assembly_state_create_info = vk::PipelineInputAssemblyStateCreateInfo(
+		vk::PipelineInputAssemblyStateCreateFlags(),
+		vk::PrimitiveTopology::eTriangleList
+	);
+
+	const auto pipeline_viewport_state_create_info = vk::PipelineViewportStateCreateInfo(
+		vk::PipelineViewportStateCreateFlags(),
+		1,
+		nullptr,
+		1,
+		nullptr
+	);
+
+	const auto pipelineRasterizationStateCreateInfo = vk::PipelineRasterizationStateCreateInfo(
+		vk::PipelineRasterizationStateCreateFlags(),
+		false,
+		false,
+		vk::PolygonMode::eFill,
+		vk::CullModeFlagBits::eBack,
+		front_face,
+		false,
+		0.0f,
+		0.0f,
+		0.0f,
+		1.0f
+	);
+
+	const auto pipelineMultisampleStateCreateInfo = vk::PipelineMultisampleStateCreateInfo({}, vk::SampleCountFlagBits::e1);
+
+	const auto stencil_op_state = vk::StencilOpState(
+		vk::StencilOp::eKeep,
+		vk::StencilOp::eKeep,
+		vk::StencilOp::eKeep,
+		vk::CompareOp::eAlways
+	);
+
+	const auto pipeline_depth_stencil_state_create_info = vk::PipelineDepthStencilStateCreateInfo(
+		vk::PipelineDepthStencilStateCreateFlags(),
+		depth_buffered,
+		depth_buffered,
+		vk::CompareOp::eLessOrEqual,
+		false,
+		false,
+		stencil_op_state,
+		stencil_op_state
+	);
+
+	const auto color_component_flags = vk::ColorComponentFlags(
+		vk::ColorComponentFlagBits::eR |
+		vk::ColorComponentFlagBits::eG |
+		vk::ColorComponentFlagBits::eB |
+		vk::ColorComponentFlagBits::eA
+	);
+	const auto pipeline_color_blend_attachment_state = vk::PipelineColorBlendAttachmentState(
+		false,
+		vk::BlendFactor::eZero,
+		vk::BlendFactor::eZero,
+		vk::BlendOp::eAdd,
+		vk::BlendFactor::eZero,
+		vk::BlendFactor::eZero,
+		vk::BlendOp::eAdd,
+		color_component_flags
+	);
+
+	const auto pipeline_color_blend_state_create_info = vk::PipelineColorBlendStateCreateInfo(
+		vk::PipelineColorBlendStateCreateFlags(),
+		false,
+		vk::LogicOp::eNoOp,
+		pipeline_color_blend_attachment_state,
+		{{1.0f, 1.0f, 1.0f, 1.0f}}
+	);
+
+	const auto dynamic_states = std::array<vk::DynamicState, 2>{vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+	const auto pipeline_dynamic_state_create_info = vk::PipelineDynamicStateCreateInfo(vk::PipelineDynamicStateCreateFlags(), dynamic_states);
+
+	const auto graphics_pipeline_create_info = vk::GraphicsPipelineCreateInfo(
+		vk::PipelineCreateFlags(),
+		pipeline_shader_stage_create_infos,
+		&pipeline_vertex_input_state_create_info,
+		&pipeline_input_assembly_state_create_info,
+		nullptr,
+		&pipeline_viewport_state_create_info,
+		&pipelineRasterizationStateCreateInfo,
+		&pipelineMultisampleStateCreateInfo,
+		&pipeline_depth_stencil_state_create_info,
+		&pipeline_color_blend_state_create_info,
+		&pipeline_dynamic_state_create_info,
+		*pipeline_layout,
+		*render_pass
+	);
+
+	return std::make_unique<vk::raii::Pipeline>(device, pipeline_cache, graphics_pipeline_create_info);
+}
+
+void updateDescriptorSets(
+	const vk::raii::Device& device,
+	const vk::raii::DescriptorSet& descriptor_set,
+	const std::vector<std::tuple<vk::DescriptorType, const vk::raii::Buffer&, const vk::raii::BufferView*>>& buffer_data,
+	const vk::raii::su::TextureData& texture_data,
+	uint32_t binding_offset = 0
+) {
+	std::vector<vk::DescriptorBufferInfo> buffer_infos;
+	buffer_infos.reserve(buffer_data.size());
+
+	std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
+	write_descriptor_sets.reserve(buffer_data.size() + 1);
+	uint32_t dst_binding = binding_offset;
+	for (const auto& bhd : buffer_data)	{
+		buffer_infos.emplace_back(*std::get<1>(bhd), 0, VK_WHOLE_SIZE);
+
+		vk::BufferView buffer_view;
+		if (std::get<2>(bhd)) {
+			buffer_view = **std::get<2>(bhd);
 		}
+
+		write_descriptor_sets.emplace_back(
+			*descriptor_set,
+			dst_binding++,
+			0,
+			1,
+			std::get<0>(bhd),
+			nullptr,
+			&buffer_infos.back(),
+			std::get<2>(bhd) ? &buffer_view : nullptr
+		);
 	}
 
-	throw std::runtime_error("Could not find both graphics and present queues");
+	const auto image_info = vk::DescriptorImageInfo(
+		**texture_data.sampler,
+		**texture_data.imageData->imageView,
+		vk::ImageLayout::eShaderReadOnlyOptimal
+	);
+
+	write_descriptor_sets.emplace_back(
+		*descriptor_set,
+		dst_binding,
+		0,
+		vk::DescriptorType::eCombinedImageSampler,
+		image_info,
+		nullptr,
+		nullptr
+	);
+
+	device.updateDescriptorSets(write_descriptor_sets, nullptr);
+}
+
+void updateDescriptorSets(
+	const vk::raii::Device& device,
+	const vk::raii::DescriptorSet& descriptor_set,
+	const std::vector<std::tuple<vk::DescriptorType, const vk::raii::Buffer&, const vk::raii::BufferView*>>& buffer_data,
+	const std::vector<vk::raii::su::TextureData>& texture_data,
+	uint32_t binding_offset = 0
+) {
+	std::vector<vk::DescriptorBufferInfo> buffer_infos;
+	buffer_infos.reserve(buffer_data.size());
+
+	std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
+	write_descriptor_sets.reserve(buffer_data.size() + (texture_data.empty() ? 0 : 1));
+	uint32_t dst_binding = binding_offset;
+	for (const auto& bhd : buffer_data)	{
+		buffer_infos.emplace_back(*std::get<1>(bhd), 0, VK_WHOLE_SIZE);
+	
+		vk::BufferView buffer_view;
+		if (std::get<2>(bhd)) {
+			buffer_view = **std::get<2>(bhd);
+		}
+
+		write_descriptor_sets.emplace_back(
+			*descriptor_set,
+			dst_binding++,
+			0,
+			1,
+			std::get<0>(bhd),
+			nullptr,
+			&buffer_infos.back(),
+			std::get<2>(bhd) ? &buffer_view : nullptr
+		);
+	}
+
+	std::vector<vk::DescriptorImageInfo> image_infos;
+	if (!texture_data.empty()) {
+		image_infos.reserve(texture_data.size());
+
+		for (const auto& thd : texture_data) {
+			image_infos.emplace_back(**thd.sampler, **thd.imageData->imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+		}
+
+		write_descriptor_sets.emplace_back(
+			*descriptor_set,
+			dst_binding,
+			0,
+			vk::su::checked_cast<uint32_t>(image_infos.size()),
+			vk::DescriptorType::eCombinedImageSampler,
+			image_infos.data(),
+			nullptr,
+			nullptr
+		);
+	}
+
+	device.updateDescriptorSets(write_descriptor_sets, nullptr);
 }
