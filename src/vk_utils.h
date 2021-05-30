@@ -253,6 +253,90 @@ std::pair<uint32_t, uint32_t> findGraphicsAndPresentQueueFamilyIndex(const vk::r
 	throw std::runtime_error("Could not find both graphics and present queues");
 }
 
+void setImageLayout(
+	const vk::raii::CommandBuffer& commandBuffer,
+	vk::Image                      image,
+	vk::Format                     format,
+	vk::ImageLayout                oldImageLayout,
+	vk::ImageLayout                newImageLayout
+) {
+	const vk::AccessFlags source_access_mask = [&]() -> vk::AccessFlags {
+		switch (oldImageLayout) {
+			case vk::ImageLayout::eTransferDstOptimal: return vk::AccessFlagBits::eTransferWrite;
+			case vk::ImageLayout::ePreinitialized: return vk::AccessFlagBits::eHostWrite;
+			case vk::ImageLayout::eGeneral: return vk::AccessFlags{}; //source_access_mask is empty
+			case vk::ImageLayout::eUndefined: return vk::AccessFlags{};
+			default: assert(false); return vk::AccessFlags{};
+		}
+	}();
+
+	const vk::PipelineStageFlags source_stage = [&]() -> vk::PipelineStageFlags {
+		switch (oldImageLayout) {
+			case vk::ImageLayout::eGeneral:
+			case vk::ImageLayout::ePreinitialized: return vk::PipelineStageFlagBits::eHost;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::PipelineStageFlagBits::eTransfer;
+			case vk::ImageLayout::eUndefined: return vk::PipelineStageFlagBits::eTopOfPipe;
+			default: assert(false); return vk::PipelineStageFlags{};
+		}
+	}();
+
+	const vk::AccessFlags destination_access_mask = [&]() -> vk::AccessFlags {
+		switch (newImageLayout) {
+			case vk::ImageLayout::eColorAttachmentOptimal: return vk::AccessFlagBits::eColorAttachmentWrite;
+			case vk::ImageLayout::eDepthStencilAttachmentOptimal: return vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+			case vk::ImageLayout::eGeneral: return vk::AccessFlagBits{0}; //empty destination_access_mask
+			case vk::ImageLayout::ePresentSrcKHR: return vk::AccessFlagBits{0};
+			case vk::ImageLayout::eShaderReadOnlyOptimal: return vk::AccessFlagBits::eShaderRead;
+			case vk::ImageLayout::eTransferSrcOptimal: return vk::AccessFlagBits::eTransferRead;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::AccessFlagBits::eTransferWrite;
+			default: assert(false); return vk::AccessFlagBits{0};
+		}
+	}();
+
+	const vk::PipelineStageFlags destination_stage = [&]() -> vk::PipelineStageFlags {
+		switch (newImageLayout) {
+			case vk::ImageLayout::eColorAttachmentOptimal: return vk::PipelineStageFlagBits::eColorAttachmentOutput;
+			case vk::ImageLayout::eDepthStencilAttachmentOptimal: return vk::PipelineStageFlagBits::eEarlyFragmentTests;
+			case vk::ImageLayout::eGeneral: return vk::PipelineStageFlagBits::eHost;
+			case vk::ImageLayout::ePresentSrcKHR: return vk::PipelineStageFlagBits::eBottomOfPipe;
+			case vk::ImageLayout::eShaderReadOnlyOptimal: return vk::PipelineStageFlagBits::eFragmentShader;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::PipelineStageFlags{};
+			case vk::ImageLayout::eTransferSrcOptimal: return vk::PipelineStageFlagBits::eTransfer;
+			default: assert(false); return vk::PipelineStageFlags{};
+		}
+	}();
+
+	const vk::ImageAspectFlags aspect_mask = [&]() -> vk::ImageAspectFlags {
+		vk::ImageAspectFlags output;
+
+		if (newImageLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
+			output = vk::ImageAspectFlagBits::eDepth;
+			if (format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint) {
+				output |= vk::ImageAspectFlagBits::eStencil;
+			}
+		}
+		else {
+			output = vk::ImageAspectFlagBits::eColor;
+		}
+
+		return output;
+	}();
+
+	const auto image_subresource_range = vk::ImageSubresourceRange(aspect_mask, 0, 1, 0, 1);
+	const auto image_memory_barrier = vk::ImageMemoryBarrier(
+		source_access_mask,
+		destination_access_mask,
+		oldImageLayout,
+		newImageLayout,
+		VK_QUEUE_FAMILY_IGNORED,
+		VK_QUEUE_FAMILY_IGNORED,
+		image,
+		image_subresource_range
+	);
+
+	return commandBuffer.pipelineBarrier(source_stage, destination_stage, {}, nullptr, nullptr, image_memory_barrier);
+}
+
 auto makeInstanceCreateInfoChain(
 	const vk::ApplicationInfo& applicationInfo,
 	const std::vector<const char*>& layers,
@@ -376,7 +460,7 @@ std::unique_ptr<vk::raii::DescriptorSetLayout> makeDescriptorSetLayout(
 
 	for (size_t i = 0; i < binding_data.size(); i++) {
 		bindings[i] = vk::DescriptorSetLayoutBinding(
-			vk::su::checked_cast<uint32_t>( i ),
+			static_cast<uint32_t>(i),
 			std::get<0>(binding_data[i]),
 			std::get<1>(binding_data[i]),
 			std::get<2>(binding_data[i])
@@ -440,7 +524,7 @@ std::unique_ptr<vk::raii::RenderPass> makeRenderPass(
 	);
 
 	const auto render_pass_create_info = vk::RenderPassCreateInfo(vk::RenderPassCreateFlags(), attachment_descriptions, subpass_description);
-	return vk::raii::su::make_unique<vk::raii::RenderPass>(device, render_pass_create_info);
+	return std::make_unique<vk::raii::RenderPass>(device, render_pass_create_info);
 }
 
 
@@ -608,11 +692,335 @@ std::unique_ptr<vk::raii::Pipeline> makeGraphicsPipeline(
 	return std::make_unique<vk::raii::Pipeline>(device, pipeline_cache, graphics_pipeline_create_info);
 }
 
+
+
+template<typename T>
+class Buffer {
+public:
+	Buffer(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		size_t                          count,
+		vk::BufferUsageFlags            usage,
+		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+	) : count(count),
+	    usage(usage),
+	    property_flags(property_flags) {
+
+		assert(count);
+		buffer        = std::make_unique<vk::raii::Buffer>(device, vk::BufferCreateInfo({}, sizeof(T) * count, usage));
+		device_memory = std::make_unique<vk::raii::DeviceMemory>(
+			allocateDeviceMemory(
+				device,
+				physical_device.getMemoryProperties(),
+				buffer->getMemoryRequirements(),
+				property_flags
+			)
+		);
+
+		buffer->bindMemory(**device_memory, 0);
+	}
+
+	void upload(const T& data) const {
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
+
+		void* mapped = device_memory->mapMemory(0, sizeof(T));
+		std::memcpy(mapped, &data, sizeof(T));
+		device_memory->unmapMemory();
+	}
+
+	void upload(const std::vector<T>& data) const {
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
+		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
+		assert(data.size() <= count);
+
+		const size_t data_size = data.size() * sizeof(T);
+		
+		void* mapped = device_memory->mapMemory(0, data_size);
+		std::memcpy(mapped, data.data(), data_size);
+        device_memory->unmapMemory();
+	}
+
+	void upload(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		const vk::raii::CommandPool&    command_pool,
+		const vk::raii::Queue&          queue,
+		const std::vector<T>&           data
+	) const {
+		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
+		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
+		assert(data.size() <= count);
+
+		const size_t data_size = data.size() * sizeof(T);
+
+		auto staging_buffer = Buffer<T>(physical_device, device, data.size(), vk::BufferUsageFlagBits::eTransferSrc);
+		buffer.upload(data);
+
+		auto cmd_buffers = vk::raii::CommandBuffers(device, {*command_pool, vk::CommandBufferLevel::ePrimary, 1});
+		auto& command_buffer = cmd_buffers.front();
+
+		command_buffer.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+        command_buffer.copyBuffer(**staging_buffer.buffer, **this->buffer, vk::BufferCopy(0, 0, data_size));
+        command_buffer.end();
+
+        const auto submit_info = vk::SubmitInfo(nullptr, nullptr, *command_buffer);
+        queue.submit(submit_info, nullptr);
+        queue.waitIdle();
+	}
+
+
+//private:
+	std::unique_ptr<vk::raii::Buffer>       buffer;
+	std::unique_ptr<vk::raii::DeviceMemory> device_memory;
+
+	size_t count;
+	vk::BufferUsageFlags usage;
+	vk::MemoryPropertyFlags property_flags;
+};
+
+class Image {
+public:
+	Image(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		vk::Format                      format,
+		const vk::Extent2D&             extent,
+		vk::ImageTiling                 tiling,
+		vk::ImageUsageFlags             usage,
+		vk::ImageLayout                 initial_layout,
+		vk::MemoryPropertyFlags         memory_properties,
+		vk::ImageAspectFlags            aspect_mask
+	) : format(format) {
+		const auto image_create_info = vk::ImageCreateInfo(
+			vk::ImageCreateFlags(),
+			vk::ImageType::e2D,
+			format,
+			vk::Extent3D(extent, 1),
+			1,
+			1,
+			vk::SampleCountFlagBits::e1,
+			tiling,
+			usage | vk::ImageUsageFlagBits::eSampled,
+			vk::SharingMode::eExclusive,
+			{},
+			initial_layout
+		);
+
+		image = std::make_unique<vk::raii::Image>(device, image_create_info);
+
+		device_memory = std::make_unique<vk::raii::DeviceMemory>(
+			allocateDeviceMemory(
+				device,
+				physical_device.getMemoryProperties(),
+				image->getMemoryRequirements(),
+				memory_properties
+			)
+		);
+
+		image->bindMemory(**device_memory, 0);
+
+		const auto component_mapping = vk::ComponentMapping(
+			vk::ComponentSwizzle::eR,
+			vk::ComponentSwizzle::eG,
+			vk::ComponentSwizzle::eB,
+			vk::ComponentSwizzle::eA
+		);
+	
+		const auto image_subresource_range = vk::ImageSubresourceRange(aspect_mask, 0, 1, 0, 1);
+		const auto image_view_create_info = vk::ImageViewCreateInfo(
+			{},
+			**image,
+			vk::ImageViewType::e2D,
+			format,
+			component_mapping,
+			image_subresource_range
+		);
+
+		image_view = std::make_unique<vk::raii::ImageView>(device, image_view_create_info);
+	}
+
+//private:
+	vk::Format                              format;
+	std::unique_ptr<vk::raii::Image>        image;
+	std::unique_ptr<vk::raii::DeviceMemory> device_memory;
+	std::unique_ptr<vk::raii::ImageView>    image_view;
+};
+
+class DepthBuffer : public Image {
+public:
+	DepthBuffer(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		vk::Format                      format,
+		const vk::Extent2D&             extent
+	) : Image(
+			physical_device,
+			device,
+			format,
+			extent,
+			vk::ImageTiling::eOptimal,
+			vk::ImageUsageFlagBits::eDepthStencilAttachment,
+			vk::ImageLayout::eUndefined,
+			vk::MemoryPropertyFlagBits::eDeviceLocal,
+			vk::ImageAspectFlagBits::eDepth
+		) {
+	}
+};
+
+class Texture {
+public:
+	Texture(
+		const vk::raii::PhysicalDevice& physical_device,
+		const vk::raii::Device&         device,
+		const vk::Extent2D&             extent               = {256, 256},
+		vk::ImageUsageFlags             usage_flags          = {},
+		vk::FormatFeatureFlags          format_feature_flags = {},
+		bool                            enable_anisotropy    = false,
+		bool                            force_staging        = false
+	) : format(vk::Format::eR8G8B8A8Unorm),
+	    extent(extent) {
+
+		format_feature_flags |= vk::FormatFeatureFlagBits::eSampledImage;
+
+		const auto format_properties = physical_device.getFormatProperties(format);
+		needs_staging = force_staging || ((format_properties.linearTilingFeatures & format_feature_flags) != format_feature_flags);
+
+		vk::ImageTiling         image_tiling;
+		vk::ImageLayout         initial_layout;
+		vk::MemoryPropertyFlags requirements;
+
+		if (needs_staging) {
+			assert((format_properties.optimalTilingFeatures & format_feature_flags) == format_feature_flags);
+
+			staging_buffer = std::make_unique<Buffer<uint8_t>>(
+				physical_device,
+				device,
+				extent.width * extent.height * 4,
+				vk::BufferUsageFlagBits::eTransferSrc
+			);
+
+			image_tiling    = vk::ImageTiling::eOptimal;
+			usage_flags     |= vk::ImageUsageFlagBits::eTransferDst;
+			initial_layout  = vk::ImageLayout::eUndefined;
+		}
+		else {
+			image_tiling   = vk::ImageTiling::eLinear;
+			initial_layout = vk::ImageLayout::ePreinitialized;
+			requirements   = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
+		}
+
+		image_data = std::make_unique<Image>(
+			physical_device,
+			device,
+			format,
+			extent,
+			image_tiling,
+			usage_flags | vk::ImageUsageFlagBits::eSampled,
+			initial_layout,
+			requirements,
+			vk::ImageAspectFlagBits::eColor
+		);
+
+		sampler = std::make_unique<vk::raii::Sampler>(
+			device,
+			vk::SamplerCreateInfo(
+				vk::SamplerCreateFlags(),
+				vk::Filter::eLinear,
+				vk::Filter::eLinear,
+				vk::SamplerMipmapMode::eLinear,
+				vk::SamplerAddressMode::eRepeat,
+				vk::SamplerAddressMode::eRepeat,
+				vk::SamplerAddressMode::eRepeat,
+				0.0f,
+				enable_anisotropy,
+				16.0f,
+				false,
+				vk::CompareOp::eNever,
+				0.0f,
+				0.0f,
+				vk::BorderColor::eFloatOpaqueBlack
+			)
+		);
+	}
+
+	template <typename ImageGenerator>
+	void setImage(const vk::raii::CommandBuffer& commandBuffer, const ImageGenerator& imageGenerator) {
+		auto map = [](auto& memory, auto& buffer) {
+			return memory->mapMemory(0, buffer->getMemoryRequirements().size);
+		};
+
+		auto unmap = [](auto& memory) {
+			memory->unmapMemory();
+		};
+
+		void* data = needs_staging ? map(staging_buffer->device_memory, staging_buffer->buffer) : map(image_data->device_memory, image_data->image);
+		imageGenerator(data, extent);
+		unmap(needs_staging ? staging_buffer : image_data);
+
+		if (needs_staging) {
+			// Since we're going to blit to the texture image, set its layout to eTransferDstOptimal
+			setImageLayout(
+				commandBuffer,
+				**image_data->image,
+				image_data->format,
+				vk::ImageLayout::eUndefined,
+				vk::ImageLayout::eTransferDstOptimal
+			);
+
+			const auto copyRegion = vk::BufferImageCopy(
+				0,
+				extent.width,
+				extent.height,
+				vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+				vk::Offset3D(0, 0, 0),
+				vk::Extent3D(extent, 1)
+			);
+	
+			commandBuffer.copyBufferToImage(
+				**staging_buffer->buffer,
+				**image_data->image,
+				vk::ImageLayout::eTransferDstOptimal,
+				copyRegion
+			);
+
+			// Set the layout for the texture image from eTransferDstOptimal to SHADER_READ_ONLY
+			setImageLayout(
+				commandBuffer,
+				**image_data->image,
+				image_data->format,
+				vk::ImageLayout::eTransferDstOptimal,
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			);
+		}
+		else
+		{
+			// Use the linear tiled image as a texture if possible
+			setImageLayout(
+				commandBuffer,
+				**image_data->image,
+				image_data->format,
+				vk::ImageLayout::ePreinitialized,
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			);
+		}
+	}
+
+//private:
+	vk::Format                         format;
+	vk::Extent2D                       extent;
+	bool                               needs_staging;
+	std::unique_ptr<Buffer<uint8_t>>   staging_buffer;
+	std::unique_ptr<Image>             image_data;
+	std::unique_ptr<vk::raii::Sampler> sampler;
+};
+
 void updateDescriptorSets(
 	const vk::raii::Device& device,
 	const vk::raii::DescriptorSet& descriptor_set,
 	const std::vector<std::tuple<vk::DescriptorType, const vk::raii::Buffer&, const vk::raii::BufferView*>>& buffer_data,
-	const vk::raii::su::TextureData& texture_data,
+	const Texture& texture_data,
 	uint32_t binding_offset = 0
 ) {
 	std::vector<vk::DescriptorBufferInfo> buffer_infos;
@@ -643,7 +1051,7 @@ void updateDescriptorSets(
 
 	const auto image_info = vk::DescriptorImageInfo(
 		**texture_data.sampler,
-		**texture_data.imageData->imageView,
+		**texture_data.image_data->image_view,
 		vk::ImageLayout::eShaderReadOnlyOptimal
 	);
 
@@ -664,7 +1072,7 @@ void updateDescriptorSets(
 	const vk::raii::Device& device,
 	const vk::raii::DescriptorSet& descriptor_set,
 	const std::vector<std::tuple<vk::DescriptorType, const vk::raii::Buffer&, const vk::raii::BufferView*>>& buffer_data,
-	const std::vector<vk::raii::su::TextureData>& texture_data,
+	const std::vector<Texture>& texture_data,
 	uint32_t binding_offset = 0
 ) {
 	std::vector<vk::DescriptorBufferInfo> buffer_infos;
@@ -673,6 +1081,7 @@ void updateDescriptorSets(
 	std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
 	write_descriptor_sets.reserve(buffer_data.size() + (texture_data.empty() ? 0 : 1));
 	uint32_t dst_binding = binding_offset;
+
 	for (const auto& bhd : buffer_data)	{
 		buffer_infos.emplace_back(*std::get<1>(bhd), 0, VK_WHOLE_SIZE);
 	
@@ -698,14 +1107,14 @@ void updateDescriptorSets(
 		image_infos.reserve(texture_data.size());
 
 		for (const auto& thd : texture_data) {
-			image_infos.emplace_back(**thd.sampler, **thd.imageData->imageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+			image_infos.emplace_back(**thd.sampler, **thd.image_data->image_view, vk::ImageLayout::eShaderReadOnlyOptimal);
 		}
 
 		write_descriptor_sets.emplace_back(
 			*descriptor_set,
 			dst_binding,
 			0,
-			vk::su::checked_cast<uint32_t>(image_infos.size()),
+			static_cast<uint32_t>(image_infos.size()),
 			vk::DescriptorType::eCombinedImageSampler,
 			image_infos.data(),
 			nullptr,
