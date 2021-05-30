@@ -12,6 +12,7 @@
 #include <glm/glm.hpp>
 
 #include "geometry.h"
+#include "vk_utils.h"
 
 #include <algorithm>
 #include <chrono>
@@ -25,6 +26,7 @@ static const std::string EngineName = "VulkanEngine";
 
 static constexpr uint32_t Width = 800;
 static constexpr uint32_t Height = 600;
+
 
 class Window {
 public:
@@ -73,17 +75,17 @@ public:
 		context = std::make_unique<vk::raii::Context>();
 
 		// Instance
-		instance = vk::raii::su::makeUniqueInstance(*context, app_name.c_str(), engine_name.c_str(), {}, vk::su::getInstanceExtensions());
+		instance = makeInstance(*context, app_name, engine_name, {}, getInstanceExtensions());
 
 		// Physical Device
-		physical_device = vk::raii::su::makeUniquePhysicalDevice(*instance);
+		physical_device = makePhysicalDevice(*instance);
 
 		// Surface
 		surface = std::make_unique<Surface>(*instance, window);
 
 		// Logical Device
-		std::tie(graphics_queue_family_idx, present_queue_family_idx) = vk::raii::su::findGraphicsAndPresentQueueFamilyIndex(*physical_device, *surface->surface);
-		device = vk::raii::su::makeUniqueDevice(*physical_device, graphics_queue_family_idx, vk::su::getDeviceExtensions());
+		std::tie(graphics_queue_family_idx, present_queue_family_idx) = findGraphicsAndPresentQueueFamilyIndex(*physical_device, *surface->surface);
+		device = makeDevice(*physical_device, graphics_queue_family_idx, getDeviceExtensions());
 
 		// Graphics Queue 
 		graphics_queue = std::make_unique<vk::raii::Queue>(*device, graphics_queue_family_idx, 0);
@@ -159,7 +161,7 @@ public:
 			}
 		}();
 
-		vk::SwapchainCreateInfoKHR swap_chain_create_info( 
+		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR(
 			{},
 			**context.surface->surface,
 			surface_capabilities.minImageCount,
@@ -192,11 +194,11 @@ public:
 		images = swap_chain->getImages();
 		image_views.reserve(images.size());
 
-		const vk::ComponentMapping component_mapping(vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA);
-		const vk::ImageSubresourceRange sub_resource_range(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+		const auto component_mapping = vk::ComponentMapping(vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA);
+		const auto sub_resource_range = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 
 		for (const auto& image : images) {
-			vk::ImageViewCreateInfo image_view_create_info(
+			const auto image_view_create_info = vk::ImageViewCreateInfo(
 				{},
 				static_cast<vk::Image>(image),
 				vk::ImageViewType::e2D,
@@ -264,12 +266,12 @@ class CommandBufferPool {
 public:
 	CommandBufferPool(VulkanContext& context) {
 		// Create command pool
-		const vk::CommandPoolCreateInfo command_pool_create_info(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.graphics_queue_family_idx);
+		const auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.graphics_queue_family_idx);
         pool = std::make_unique<vk::raii::CommandPool>(*context.device, command_pool_create_info);
 
 		// Create command buffers
-		const vk::CommandBufferAllocateInfo command_buffer_allocate_info(**pool, vk::CommandBufferLevel::ePrimary, 1);
-		vk::raii::CommandBuffers buffers(*context.device, command_buffer_allocate_info);
+		const auto command_buffer_allocate_info = vk::CommandBufferAllocateInfo(**pool, vk::CommandBufferLevel::ePrimary, 1);
+		auto buffers = vk::raii::CommandBuffers(*context.device, command_buffer_allocate_info);
         buffer = std::make_unique<vk::raii::CommandBuffer>(std::move(buffers.front()));
 	}
 
@@ -295,7 +297,7 @@ public:
 		assert(count);
 		buffer        = std::make_unique<vk::raii::Buffer>(device, vk::BufferCreateInfo({}, sizeof(T) * count, usage));
 		device_memory = std::make_unique<vk::raii::DeviceMemory>(
-			vk::raii::su::allocateDeviceMemory(
+			allocateDeviceMemory(
 				device,
 				physical_device.getMemoryProperties(),
 				buffer->getMemoryRequirements(),
@@ -340,17 +342,17 @@ public:
 
 		const size_t data_size = data.size() * sizeof(T);
 
-		Buffer<T> staging_buffer(physical_device, device, data.size(), vk::BufferUsageFlagBits::eTransferSrc);
+		auto staging_buffer = Buffer<T>(physical_device, device, data.size(), vk::BufferUsageFlagBits::eTransferSrc);
 		buffer.upload(data);
 
-		vk::raii::CommandBuffers cmd_buffers(device, {*command_pool, vk::CommandBufferLevel::ePrimary, 1});
+		auto cmd_buffers = vk::raii::CommandBuffers(device, {*command_pool, vk::CommandBufferLevel::ePrimary, 1});
 		auto& command_buffer = cmd_buffers.front();
 
 		command_buffer.begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
         command_buffer.copyBuffer(**staging_buffer.buffer, **this->buffer, vk::BufferCopy(0, 0, data_size));
         command_buffer.end();
 
-        vk::SubmitInfo submit_info(nullptr, nullptr, *command_buffer);
+        const auto submit_info = vk::SubmitInfo(nullptr, nullptr, *command_buffer);
         queue.submit(submit_info, nullptr);
         queue.waitIdle();
 	}
@@ -370,22 +372,22 @@ int main(int argc, char** argv) {
 	glfwInit();
 
 	// Window
-	Window window(AppName, vk::Extent2D{Width, Height});
+	auto window = Window(AppName, vk::Extent2D{Width, Height});
 
 	// Vulkan Context
-	VulkanContext context(AppName, EngineName, window);
+	auto context = VulkanContext(AppName, EngineName, window);
 
 	// Swap Chain
-	SwapChain swap_chain(context, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc, {});
+	auto swap_chain = SwapChain(context, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc, {});
 
 	// Command Pool
-	CommandBufferPool cmd_buffer_pool(context);
+	auto cmd_buffer_pool = CommandBufferPool(context);
 
 	// Depth Buffer
-	vk::raii::su::DepthBufferData depthBufferData(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.surface->window.size);
+	auto depthBufferData = vk::raii::su::DepthBufferData(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.surface->window.size);
 
 	// Model Uniform Buffer
-	Buffer<glm::mat4> uniform_buffer(*context.physical_device, *context.device, 1, vk::BufferUsageFlagBits::eUniformBuffer);
+	auto uniform_buffer = Buffer<glm::mat4>(*context.physical_device, *context.device, 1, vk::BufferUsageFlagBits::eUniformBuffer);
     const glm::mat4 mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(context.surface->window.size);
 	uniform_buffer.upload(mvpc_matrix);
 
@@ -525,188 +527,3 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
-
-/*
-int main(int argc, char** argv) {
-	//glfwInit();
-
-	// Context
-	std::unique_ptr<vk::raii::Context> context = std::make_unique<vk::raii::Context>();
-
-	// Instance
-	std::unique_ptr<vk::raii::Instance> instance = vk::raii::su::makeUniqueInstance(*context, app_name.c_str(), engine_name.c_str(), {}, vk::su::getInstanceExtensions());
-
-	// Physical Device
-	std::unique_ptr<vk::raii::PhysicalDevice> physicalDevice = vk::raii::su::makeUniquePhysicalDevice(*instance);
-
-	// Initializes GLFW, creates a GLFW window, and creates a Vulkan Surface
-	vk::raii::su::SurfaceData surfaceData(*instance, AppName, vk::Extent2D{Width, Height});
-
-	// Command Pool
-	std::unique_ptr<vk::raii::CommandPool> commandPool = vk::raii::su::makeUniqueCommandPool(*device, graphicsAndPresentQueueFamilyIndex.first);
-
-	// Command Buffer
-    std::unique_ptr<vk::raii::CommandBuffer> commandBuffer = vk::raii::su::makeUniqueCommandBuffer(*device, *commandPool);
-
-	// Graphics Queue 
-	std::unique_ptr<vk::raii::Queue> graphicsQueue = std::make_unique<vk::raii::Queue>(*device, graphicsAndPresentQueueFamilyIndex.first, 0);
-
-	// Command Queue
-	std::unique_ptr<vk::raii::Queue> presentQueue = std::make_unique<vk::raii::Queue>(*device, graphicsAndPresentQueueFamilyIndex.second, 0);
-
-	// Swap Chain
-	vk::raii::su::SwapChainData swapChainData(
-		*physicalDevice,
-		*device,
-		*surfaceData.surface,
-		surfaceData.extent,
-		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
-		{},
-		graphicsAndPresentQueueFamilyIndex.first,
-		graphicsAndPresentQueueFamilyIndex.second
-	);
-
-	// Depth Buffer
-	vk::raii::su::DepthBufferData depthBufferData(*physicalDevice, *device, vk::Format::eD16Unorm, surfaceData.extent);
-
-	// Model Uniform Buffer
-    vk::raii::su::BufferData uniformBufferData(*physicalDevice, *device, sizeof( glm::mat4x4 ), vk::BufferUsageFlagBits::eUniformBuffer);
-    glm::mat4x4 mvpcMatrix = vk::su::createModelViewProjectionClipMatrix(surfaceData.extent);
-    vk::raii::su::copyToDevice(*uniformBufferData.deviceMemory, mvpcMatrix);
-
-	// Pipeline Layout
-    std::unique_ptr<vk::raii::DescriptorSetLayout> descriptorSetLayout = vk::raii::su::makeUniqueDescriptorSetLayout(*device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});
-    std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = vk::raii::su::makeUniquePipelineLayout(*device, *descriptorSetLayout);
-
-	// Color Format
-	vk::Format colorFormat = vk::su::pickSurfaceFormat(physicalDevice->getSurfaceFormatsKHR(**surfaceData.surface)).format;
-
-	// Render Pass
-	std::unique_ptr<vk::raii::RenderPass> renderPass = vk::raii::su::makeUniqueRenderPass(*device, colorFormat, depthBufferData.format);
-
-	// Compile Shaders
-    glslang::InitializeProcess();
-    std::unique_ptr<vk::raii::ShaderModule> vertexShaderModule = vk::raii::su::makeUniqueShaderModule(*device, vk::ShaderStageFlagBits::eVertex, vertexShaderText_PC_C);
-    std::unique_ptr<vk::raii::ShaderModule> fragmentShaderModule = vk::raii::su::makeUniqueShaderModule(*device, vk::ShaderStageFlagBits::eFragment, fragmentShaderText_C_C);
-    glslang::FinalizeProcess();
-
-	// Framebuffers
-	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = vk::raii::su::makeUniqueFramebuffers(*device, *renderPass, swapChainData.imageViews, depthBufferData.imageView, surfaceData.extent);
-
-	// Vertex Buffer
-	//vk::raii::su::BufferData vertexBufferData(*physicalDevice, *device, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
-    //vk::raii::su::copyToDevice(*vertexBufferData.deviceMemory, coloredCubeData, sizeof(coloredCubeData) / sizeof(coloredCubeData[0]));
-	vk::BufferCreateInfo bufferCreateInfo({}, sizeof(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
-	std::unique_ptr<vk::raii::Buffer> vertexBuffer = std::make_unique<vk::raii::Buffer>(*device, bufferCreateInfo);
-
-	// Allocate memory for the vertex buffer
-    vk::MemoryRequirements memoryRequirements = vertexBuffer->getMemoryRequirements();
-    uint32_t               memoryTypeIndex = vk::su::findMemoryType(
-		physicalDevice->getMemoryProperties(),
-		memoryRequirements.memoryTypeBits,
-		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-	);
-    vk::MemoryAllocateInfo                  memoryAllocateInfo(memoryRequirements.size, memoryTypeIndex);
-    std::unique_ptr<vk::raii::DeviceMemory> deviceMemory = std::make_unique<vk::raii::DeviceMemory>(*device, memoryAllocateInfo);
-
-	// Copy data into vertex buffer
-    uint8_t* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
-    std::memcpy(pData, coloredCubeData, sizeof(coloredCubeData));
-    deviceMemory->unmapMemory();
-
-	// Bind device memory to the vertex buffer
-	vertexBuffer->bindMemory(**deviceMemory, 0);
-
-	// Descriptor Set
-    std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = vk::raii::su::makeUniqueDescriptorPool(*device, {{vk::DescriptorType::eUniformBuffer, 1}});
-    std::unique_ptr<vk::raii::DescriptorSet> descriptorSet = vk::raii::su::makeUniqueDescriptorSet(*device, *descriptorPool, *descriptorSetLayout);
-    vk::raii::su::updateDescriptorSets(*device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniformBufferData.buffer, nullptr}}, {});
-
-	// Pipeline
-	std::unique_ptr<vk::raii::PipelineCache> pipelineCache = vk::raii::su::make_unique<vk::raii::PipelineCache>(*device, vk::PipelineCacheCreateInfo());
-    std::unique_ptr<vk::raii::Pipeline> graphicsPipeline = vk::raii::su::makeUniqueGraphicsPipeline(
-    	*device,
-    	*pipelineCache,
-    	*vertexShaderModule,
-    	nullptr,
-    	*fragmentShaderModule,
-    	nullptr,
-    	vk::su::checked_cast<uint32_t>(sizeof(coloredCubeData[0])),
-    	{{vk::Format::eR32G32B32A32Sfloat, 0}, {vk::Format::eR32G32B32A32Sfloat, 16}},
-    	vk::FrontFace::eClockwise,
-    	true,
-    	*pipelineLayout,
-    	*renderPass
-	);
-
-	// Semaphore
-	std::unique_ptr<vk::raii::Semaphore> imageAcquiredSemaphore = std::make_unique<vk::raii::Semaphore>(*device, vk::SemaphoreCreateInfo());
-
-
-    vk::Result result;
-    uint32_t   imageIndex;
-    std::tie(result, imageIndex) = swapChainData.swapChain->acquireNextImage(vk::su::FenceTimeout, **imageAcquiredSemaphore);
-    assert(result == vk::Result::eSuccess);
-    assert(imageIndex < swapChainData.images.size());
-
-    std::array<vk::ClearValue, 2> clearValues;
-    clearValues[0].color        = vk::ClearColorValue(std::array<float, 4>{0.2f, 0.2f, 0.2f, 0.2f});
-    clearValues[1].depthStencil = vk::ClearDepthStencilValue(1.0f, 0);
-
-    commandBuffer->begin({});
-
-    vk::RenderPassBeginInfo renderPassBeginInfo(**renderPass, **framebuffers[imageIndex], vk::Rect2D(vk::Offset2D(0, 0), surfaceData.extent), clearValues);
-    commandBuffer->beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
-    commandBuffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **graphicsPipeline);
-    commandBuffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **pipelineLayout, 0, {**descriptorSet}, nullptr);
-
-    commandBuffer->bindVertexBuffers(0, {**vertexBuffer}, {0});
-
-    commandBuffer->setViewport(0,
-                               vk::Viewport(0.0f,
-                                            0.0f,
-                                            static_cast<float>( surfaceData.extent.width ),
-                                            static_cast<float>( surfaceData.extent.height ),
-                                            0.0f,
-                                            1.0f));
-    commandBuffer->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), surfaceData.extent));
-
-	commandBuffer->draw(12 * 3, 1, 0, 0);
-
-    commandBuffer->endRenderPass();
-    commandBuffer->end();
-
-	// Submit and wait
-    //vk::raii::su::submitAndWait(*device, *graphicsQueue, *commandBuffer);
-	std::unique_ptr<vk::raii::Fence> drawFence = vk::raii::su::make_unique<vk::raii::Fence>(*device, vk::FenceCreateInfo());
-	vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-    vk::SubmitInfo         submitInfo(**imageAcquiredSemaphore, waitDestinationStageMask, **commandBuffer);
-    graphicsQueue->submit(submitInfo, **drawFence);
-
-	while (vk::Result::eTimeout == device->waitForFences({**drawFence}, VK_TRUE, vk::su::FenceTimeout))
-		;
-
-	// Present
-    vk::PresentInfoKHR presentInfoKHR(nullptr, **swapChainData.swapChain, imageIndex);
-    result = presentQueue->presentKHR(presentInfoKHR);
-    switch (result) {
-      case vk::Result::eSuccess: break;
-      case vk::Result::eSuboptimalKHR:
-        std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
-        break;
-      default: assert(false);  // an unexpected result is returned !
-    }
-    //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-    device->waitIdle();
-
-	// Wait for exit event
-	while (!glfwWindowShouldClose(surfaceData.window.handle)) {
-		glfwPollEvents();
-	}
-
-	//glfwTerminate();
-
-	return 0;
-}
-*/
