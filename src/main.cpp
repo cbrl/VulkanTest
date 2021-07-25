@@ -14,6 +14,8 @@
 #include "geometry.h"
 #include "vk_utils.h"
 
+#include "vulkan_rendering.h"
+
 #include <algorithm>
 #include <chrono>
 #include <memory>
@@ -28,259 +30,6 @@ static constexpr uint32_t Width = 800;
 static constexpr uint32_t Height = 600;
 
 
-class Window {
-public:
-	Window(const std::string& name, const vk::Extent2D& size) : handle(handle), name(name), size(size) {
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-		handle = glfwCreateWindow(size.width, size.height, name.c_str(), nullptr, nullptr);
-		if (!handle) {
-			throw std::runtime_error("Failed to create window");
-		}
-	}
-
-	~Window() {
-		glfwDestroyWindow(handle);
-	}
-
-//private:
-	GLFWwindow* handle;
-	std::string name;
-	vk::Extent2D size;
-};
-
-class Surface {
-public:
-	Surface(const vk::raii::Instance& instance, const Window& window) : window(window) {
-		VkSurfaceKHR surface_khr;
-
-		const VkResult err = glfwCreateWindowSurface(static_cast<VkInstance>(*instance), window.handle, nullptr, &surface_khr);
-		if (err != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create window surface");
-		}
-
-		surface = std::make_unique<vk::raii::SurfaceKHR>(instance, surface_khr);
-	}
-
-//private:
-	const Window& window;
-	std::unique_ptr<vk::raii::SurfaceKHR> surface;
-};
-
-class VulkanContext {
-public:
-	VulkanContext(const std::string& app_name, const std::string& engine_name, Window& window) {
-		// Context
-		context = std::make_unique<vk::raii::Context>();
-
-		// Instance
-		instance = makeInstance(*context, app_name, engine_name, {}, getInstanceExtensions());
-
-		// Physical Device
-		physical_device = makePhysicalDevice(*instance);
-
-		// Surface
-		surface = std::make_unique<Surface>(*instance, window);
-
-		// Logical Device
-		std::tie(graphics_queue_family_idx, present_queue_family_idx) = findGraphicsAndPresentQueueFamilyIndex(*physical_device, *surface->surface);
-		device = makeDevice(*physical_device, graphics_queue_family_idx, getDeviceExtensions());
-
-		// Graphics Queue 
-		graphics_queue = std::make_unique<vk::raii::Queue>(*device, graphics_queue_family_idx, 0);
-
-		// Present Queue
-		present_queue = std::make_unique<vk::raii::Queue>(*device, present_queue_family_idx, 0);
-	}
-
-//private:
-	std::unique_ptr<vk::raii::Context> context;
-	std::unique_ptr<vk::raii::Instance> instance;
-	std::unique_ptr<vk::raii::PhysicalDevice> physical_device;
-	std::unique_ptr<Surface> surface;
-	std::unique_ptr<vk::raii::Device> device;
-	std::unique_ptr<vk::raii::Queue> graphics_queue;
-	std::unique_ptr<vk::raii::Queue> present_queue;
-
-	uint32_t graphics_queue_family_idx = 0;
-	uint32_t present_queue_family_idx = 0;
-};
-
-
-class SwapChain {
-public:
-	SwapChain(
-		const VulkanContext& context,
-		vk::ImageUsageFlags usage,
-		const std::unique_ptr<vk::raii::SwapchainKHR>& old_swap_chain
-	) {
-		const vk::SurfaceCapabilitiesKHR surface_capabilities = context.physical_device->getSurfaceCapabilitiesKHR(**context.surface->surface);
-		const vk::SurfaceFormatKHR surface_format = selectSurfaceFormat(context.physical_device->getSurfaceFormatsKHR(**context.surface->surface));
-		const vk::PresentModeKHR present_mode = selectPresentMode(context.physical_device->getSurfacePresentModesKHR(**context.surface->surface));
-
-		color_format = surface_format.format;
-
-		const vk::Extent2D swap_chain_extent = [&] {
-			vk::Extent2D extent;
-
-			if (surface_capabilities.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
-				// If the surface size is undefined, the size is set to the size of the images requested.
-				extent.width  = std::clamp(context.surface->window.size.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-				extent.height = std::clamp(context.surface->window.size.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
-			}
-			else {
-				// If the surface size is defined, the swap chain size must match
-				extent = surface_capabilities.currentExtent;
-			}
-
-			return extent;
-		}();
-
-		const vk::SurfaceTransformFlagBitsKHR pre_transform = [&] {
-			if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
-				return vk::SurfaceTransformFlagBitsKHR::eIdentity;
-			}
-			else {
-				return surface_capabilities.currentTransform;
-			}
-		}();
-
-		const vk::CompositeAlphaFlagBitsKHR composite_alpha = [&] {
-			if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) {
-				return vk::CompositeAlphaFlagBitsKHR::ePreMultiplied;
-			}
-			else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePostMultiplied) {
-				return vk::CompositeAlphaFlagBitsKHR::ePostMultiplied;
-			}
-			else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) {
-				return vk::CompositeAlphaFlagBitsKHR::eInherit;
-			}
-			else {
-				return vk::CompositeAlphaFlagBitsKHR::eOpaque;
-			}
-		}();
-
-		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR(
-			{},
-			**context.surface->surface,
-			surface_capabilities.minImageCount,
-			color_format,
-			surface_format.colorSpace,
-			swap_chain_extent,
-			1,
-			usage,
-			vk::SharingMode::eExclusive,
-			{},
-			pre_transform,
-			composite_alpha,
-			present_mode,
-			true,
-			old_swap_chain ? **old_swap_chain : nullptr
-		);
-
-		if (context.graphics_queue_family_idx != context.present_queue_family_idx) {
-			const uint32_t queue_family_indices[2] = {context.graphics_queue_family_idx, context.present_queue_family_idx};
-
-			// If the graphics and present queues are from different queue families, we either have to explicitly
-			// transfer ownership of images between the queues, or we have to create the swapchain with imageSharingMode
-			// as vk::SharingMode::eConcurrent
-			swap_chain_create_info.imageSharingMode      = vk::SharingMode::eConcurrent;
-			swap_chain_create_info.queueFamilyIndexCount = 2;
-			swap_chain_create_info.pQueueFamilyIndices   = queue_family_indices;
-		}
-
-		swap_chain = std::make_unique<vk::raii::SwapchainKHR>(*context.device, swap_chain_create_info);
-		images = swap_chain->getImages();
-		image_views.reserve(images.size());
-
-		const auto component_mapping = vk::ComponentMapping(vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA);
-		const auto sub_resource_range = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-
-		for (const auto& image : images) {
-			const auto image_view_create_info = vk::ImageViewCreateInfo(
-				{},
-				static_cast<vk::Image>(image),
-				vk::ImageViewType::e2D,
-				color_format,
-				component_mapping,
-				sub_resource_range
-			);
-
-			image_views.emplace_back(*context.device, image_view_create_info);
-		}
-	}
-
-	static vk::SurfaceFormatKHR selectSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& formats) {
-		assert(!formats.empty());
-
-		// Priority list of formats to look for
-		static const vk::Format desired_formats[] = {
-			vk::Format::eB8G8R8A8Unorm,
-			vk::Format::eR8G8B8A8Unorm,
-			vk::Format::eB8G8R8Unorm,
-			vk::Format::eR8G8B8Unorm
-		};
-
-		// Only look for SRGB color space
-		const vk::ColorSpaceKHR desired_color_space = vk::ColorSpaceKHR::eSrgbNonlinear;
-
-		for (const auto& format : desired_formats) {
-			const auto it = std::ranges::find_if(formats, [format, desired_color_space](const vk::SurfaceFormatKHR& f) {
-				return (f.format == format) && (f.colorSpace == desired_color_space);
-			});
-
-			if (it != formats.end()) {
-				return *it;
-			}
-		}
-
-		throw std::runtime_error("No desired surface format found");
-	}
-
-	static vk::PresentModeKHR selectPresentMode(const std::vector<vk::PresentModeKHR>& modes) {
-		static const vk::PresentModeKHR desired_modes[] = {
-			vk::PresentModeKHR::eMailbox,
-			vk::PresentModeKHR::eImmediate
-		};
-
-		for (const auto& mode : desired_modes) {
-			if (const auto it = std::ranges::find(modes, mode); it != modes.end()) {
-				return *it;
-			}
-		}
-
-		// FIFO is guaranteed to be available
-		return vk::PresentModeKHR::eFifo;
-    }
-
-//private:
-	vk::Format                              color_format;
-	std::unique_ptr<vk::raii::SwapchainKHR> swap_chain;
-	std::vector<VkImage>                    images;
-	std::vector<vk::raii::ImageView>        image_views;
-};
-
-
-class CommandBufferPool {
-public:
-	CommandBufferPool(VulkanContext& context) {
-		// Create command pool
-		const auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.graphics_queue_family_idx);
-        pool = std::make_unique<vk::raii::CommandPool>(*context.device, command_pool_create_info);
-
-		// Create command buffers
-		const auto command_buffer_allocate_info = vk::CommandBufferAllocateInfo(**pool, vk::CommandBufferLevel::ePrimary, 1);
-		auto buffers = vk::raii::CommandBuffers(*context.device, command_buffer_allocate_info);
-        buffer = std::make_unique<vk::raii::CommandBuffer>(std::move(buffers.front()));
-	}
-
-//private:
-	std::unique_ptr<vk::raii::CommandPool> pool;
-	std::unique_ptr<vk::raii::CommandBuffer> buffer;
-};
-
-
 int main(int argc, char** argv) {
 	glfwInit();
 
@@ -291,17 +40,17 @@ int main(int argc, char** argv) {
 	auto context = VulkanContext(AppName, EngineName, window);
 
 	// Swap Chain
-	auto swap_chain = SwapChain(context, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc, {});
+	auto swap_chain = SwapChain(context, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc);
 
 	// Command Pool
 	auto cmd_buffer_pool = CommandBufferPool(context);
 
 	// Depth Buffer
-	auto depth_buffer = DepthBuffer(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.surface->window.size);
+	auto depth_buffer = DepthBuffer(*context.physical_device, *context.device, vk::Format::eD16Unorm, context.window.get().size);
 
 	// Model Uniform Buffer
 	auto uniform_buffer = Buffer<glm::mat4>(*context.physical_device, *context.device, 1, vk::BufferUsageFlagBits::eUniformBuffer);
-    const glm::mat4 mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(context.surface->window.size);
+    const glm::mat4 mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(context.window.get().size);
 	uniform_buffer.upload(mvpc_matrix);
 
 	// Pipeline Layout
@@ -313,12 +62,12 @@ int main(int argc, char** argv) {
 
 	// Compile Shaders
     glslang::InitializeProcess();
-    std::unique_ptr<vk::raii::ShaderModule> vertexShaderModule = vk::raii::su::makeUniqueShaderModule(*context.device, vk::ShaderStageFlagBits::eVertex, vertexShaderText_PC_C);
-    std::unique_ptr<vk::raii::ShaderModule> fragmentShaderModule = vk::raii::su::makeUniqueShaderModule(*context.device, vk::ShaderStageFlagBits::eFragment, fragmentShaderText_C_C);
+    auto vertexShaderModule = vk::raii::su::makeUniqueShaderModule(*context.device, vk::ShaderStageFlagBits::eVertex, vertexShaderText_PC_C);
+    auto fragmentShaderModule = vk::raii::su::makeUniqueShaderModule(*context.device, vk::ShaderStageFlagBits::eFragment, fragmentShaderText_C_C);
     glslang::FinalizeProcess();
 
 	// Framebuffers
-	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = makeFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.surface->window.size);
+	std::vector<std::unique_ptr<vk::raii::Framebuffer>> framebuffers = makeFramebuffers(*context.device, *renderPass, swap_chain.image_views, depth_buffer.image_view, context.window.get().size);
 
 	// Vertex Buffer
 	auto vertexBuffer = Buffer<VertexPC>(*context.physical_device, *context.device, std::size(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
@@ -336,7 +85,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<vk::raii::DeviceMemory> deviceMemory = std::make_unique<vk::raii::DeviceMemory>(*context.device, memoryAllocateInfo);
 
 	// Copy data into vertex buffer
-    uint8_t* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
+    auto* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
     std::memcpy(pData, coloredCubeData, sizeof(coloredCubeData));
     deviceMemory->unmapMemory();
 
@@ -346,7 +95,7 @@ int main(int argc, char** argv) {
     updateDescriptorSets(*context.device, *descriptorSet, {{vk::DescriptorType::eUniformBuffer, *uniform_buffer.buffer, nullptr}}, {});
 
 	// Pipeline
-	std::unique_ptr<vk::raii::PipelineCache> pipelineCache = std::make_unique<vk::raii::PipelineCache>(*context.device, vk::PipelineCacheCreateInfo());
+	auto pipelineCache = std::make_unique<vk::raii::PipelineCache>(*context.device, vk::PipelineCacheCreateInfo());
     std::unique_ptr<vk::raii::Pipeline> graphicsPipeline = makeGraphicsPipeline(
     	*context.device,
     	*pipelineCache,
@@ -363,7 +112,7 @@ int main(int argc, char** argv) {
 	);
 
 	// Semaphore
-	std::unique_ptr<vk::raii::Semaphore> imageAcquiredSemaphore = std::make_unique<vk::raii::Semaphore>(*context.device, vk::SemaphoreCreateInfo());
+	auto imageAcquiredSemaphore = std::make_unique<vk::raii::Semaphore>(*context.device, vk::SemaphoreCreateInfo());
 
 
     vk::Result result;
@@ -378,7 +127,7 @@ int main(int argc, char** argv) {
 
     cmd_buffer_pool.buffer->begin({});
 
-    vk::RenderPassBeginInfo renderPassBeginInfo(**renderPass, **framebuffers[imageIndex], vk::Rect2D(vk::Offset2D(0, 0), context.surface->window.size), clearValues);
+    const auto renderPassBeginInfo = vk::RenderPassBeginInfo(**renderPass, **framebuffers[imageIndex], vk::Rect2D(vk::Offset2D(0, 0), context.window.get().size), clearValues);
     cmd_buffer_pool.buffer->beginRenderPass(renderPassBeginInfo, vk::SubpassContents::eInline);
     cmd_buffer_pool.buffer->bindPipeline(vk::PipelineBindPoint::eGraphics, **graphicsPipeline);
     cmd_buffer_pool.buffer->bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **pipelineLayout, 0, {**descriptorSet}, nullptr);
@@ -390,13 +139,13 @@ int main(int argc, char** argv) {
 		vk::Viewport(
 			0.0f,
 			0.0f,
-			static_cast<float>(context.surface->window.size.width),
-			static_cast<float>(context.surface->window.size.height),
+			static_cast<float>(context.window.get().size.width),
+			static_cast<float>(context.window.get().size.height),
 			0.0f,
 			1.0f
 		)
 	);
-    cmd_buffer_pool.buffer->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), context.surface->window.size));
+    cmd_buffer_pool.buffer->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), context.window.get().size));
 
 	cmd_buffer_pool.buffer->draw(12 * 3, 1, 0, 0);
 
@@ -428,7 +177,7 @@ int main(int argc, char** argv) {
     context.device->waitIdle();
 
 	// Wait for exit event
-	while (!glfwWindowShouldClose(context.surface->window.handle)) {
+	while (!glfwWindowShouldClose(context.window.get().handle)) {
 		glfwPollEvents();
 	}
 
