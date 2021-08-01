@@ -17,7 +17,7 @@
 
 class Window {
 public:
-	Window(const std::string& name, const vk::Extent2D& size) : handle(handle), name(name), size(size) {
+	Window(const std::string& name, const vk::Extent2D& size) : name(name), size(size) {
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
@@ -72,8 +72,10 @@ public:
 	auto makeInstance(uint32_t api_version = VK_API_VERSION_1_0) -> void {
 		const auto application_info = vk::ApplicationInfo(app_name.c_str(), 1, engine_name.c_str(), 1, api_version);
 
+		const auto instance_extensions = getInstanceExtensions();
+
 		const auto enabled_layers     = gatherLayers({}, context->enumerateInstanceLayerProperties());
-		const auto enabled_extensions = gatherExtensions(getInstanceExtensions(), context->enumerateInstanceExtensionProperties());
+		const auto enabled_extensions = gatherExtensions(instance_extensions, context->enumerateInstanceExtensionProperties());
 
 		const auto instance_create_info_chain = makeInstanceCreateInfoChain(application_info, enabled_layers, enabled_extensions);
 
@@ -83,9 +85,8 @@ public:
 	auto makeDevice(const vk::PhysicalDeviceFeatures* physical_device_features = nullptr) -> void {
 		std::tie(graphics_queue_family_idx, present_queue_family_idx) = findGraphicsAndPresentQueueFamilyIndex(*physical_device, *surface);
 
-		const auto enabled_extensions = [] {
-			const auto device_extensions = getDeviceExtensions();
-
+		const auto device_extensions = getDeviceExtensions();
+		const auto enabled_extensions = [&] {
 			auto extensions = std::vector<const char*>{};
 			for (const auto& ext : device_extensions) {
 				extensions.push_back(ext.data());
