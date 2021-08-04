@@ -71,10 +71,10 @@ int main(int argc, char** argv) {
 		throw std::runtime_error("No available present queue family");
 	}
 
-	auto queue_family_info = vkw::QueueFamilyInfo{graphics_queue.value(), {vkw::QueueInfo{}}};
-	device_info.queue_family_info_list.push_back(std::move(queue_family_info));
+	device_info.addQueues(graphics_queue.value(), vk::QueueFlagBits::eGraphics, 1.0f);
 
 	auto logical_device = vkw::LogicalDevice{device_info};
+	//logical_device.getQueue(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
 
 /*
 
