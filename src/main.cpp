@@ -23,6 +23,11 @@
 #include <thread>
 #include <vector>
 
+#include "vulkan_wrapper/instance.h"
+#include "vulkan_wrapper/logical_device.h"
+#include "vulkan_wrapper/physical_device.h"
+#include "vulkan_wrapper/window.h"
+
 static const std::string AppName = "VulkanTest";
 static const std::string EngineName = "VulkanEngine";
 
@@ -32,6 +37,46 @@ static constexpr uint32_t Height = 600;
 
 int main(int argc, char** argv) {
 	glfwInit();
+
+
+	const auto app_info = vkw::Instance::AppInfo{};
+
+	auto instance_info = vkw::Instance::InstanceInfo{
+		.layers = {},
+		.extensions = vkw::util::getSurfaceExtensions()
+	};
+	instance_info.extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+
+	const auto debug_info = vkw::Instance::DebugInfo{
+		.utils = true,
+		.validation = true
+	};
+
+	auto instance = vkw::Instance(app_info, instance_info, debug_info);
+
+	auto window = vkw::Window(instance.getVkInstance(), "My Window", {1280, 1024});
+
+	auto device_info = vkw::LogicalDevice::LogicalDeviceInfo{
+		.physical_device = instance.getPhysicalDevice(0),
+		.features = {},
+		.extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}
+	};
+
+	const auto [graphics_queue, present_queue] = vkw::util::findGraphicsAndPresentQueueFamilies(device_info.physical_device, window.getSurface());
+
+	if (not graphics_queue.has_value()) {
+		throw std::runtime_error("No available graphics queue family");
+	}
+	if (not present_queue.has_value()) {
+		throw std::runtime_error("No available present queue family");
+	}
+
+	auto queue_family_info = vkw::QueueFamilyInfo{graphics_queue.value(), {vkw::QueueInfo{}}};
+	device_info.queue_family_info_list.push_back(std::move(queue_family_info));
+
+	auto logical_device = vkw::LogicalDevice{device_info};
+
+/*
 
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});
@@ -180,6 +225,7 @@ int main(int argc, char** argv) {
 	while (!glfwWindowShouldClose(context.window.get().handle)) {
 		glfwPollEvents();
 	}
+*/
 
 	glfwTerminate();
 
