@@ -6,28 +6,41 @@
 
 
 namespace vkw {
-namespace detail {
-	auto indexOf(const auto& list, auto&& test) -> std::optional<uint32_t> {
-		const auto it = std::ranges::find_if(list, test);
-		if (it == list.end()) {
-			return {};
-		}
-		else {
-			return static_cast<uint32_t>(std::distance(list.begin(), it));
-		}
-	}
-}
 
 struct QueueInfo {
-	vk::QueueFlags flags = vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
 	float priority = 1.0f;
 };
 
-
 struct QueueFamilyInfo {
 	uint32_t family_idx;
+	vk::QueueFlags flags = vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
 	std::vector<QueueInfo> queues;
 };
+
+class Queue : public vk::raii::Queue {
+public:
+	Queue(vk::raii::Device& device, uint32_t family_idx, uint32_t queue_idx) :
+		vk::raii::Queue(device, family_idx, queue_idx),
+		family_index(family_idx),
+		queue_index(queue_idx) {
+	}
+
+	uint32_t family_index;
+	uint32_t queue_index;
+};
+
+
+namespace detail {
+auto indexOf(const auto& list, auto&& test) -> std::optional<uint32_t> {
+	const auto it = std::ranges::find_if(list, test);
+	if (it == list.end()) {
+		return {};
+	}
+	else {
+		return static_cast<uint32_t>(std::distance(list.begin(), it));
+	}
+}
+} //namespace detail
 
 
 namespace util {
@@ -96,18 +109,18 @@ auto validateQueues(const std::vector<QueueFamilyInfo>& queue_family_info_list, 
 			invalid_queues = true;
 		}
 
+		if ((property.queueFlags & family.flags) != family.flags) {
+			std::cout << "Queue family " << family.family_idx << " does not support the requested flags\n"
+			          << "  Requested: " << vk::to_string(family.flags) << '\n'
+			          << "  Available: " << vk::to_string(property.queueFlags) << '\n';
+			invalid_queues = true;
+		}
+
 		for (auto idx : std::views::iota(size_t{0}, family.queues.size())) {
 			const auto& queue = family.queues[idx];
 
-			if ((property.queueFlags & queue.flags) != queue.flags) {
-				const auto req_flags = util::separateFlags(queue.flags);
-				const auto avail_flags = util::separateFlags(property.queueFlags);
-
-				std::cout << "Queue family " << family.family_idx << " does not support the flags requested in queue " << idx << ":\n";
-
-				std::cout << "  Requested: " << vk::to_string(queue.flags) << '\n';
-				std::cout << "  Available: " << vk::to_string(property.queueFlags) << '\n';
-
+			if ((queue.priority < 0) || (queue.priority > 1)) {
+				std::cout << "Invalid priority for queue " << idx << " in family " << family.family_idx << ": " << queue.priority << '\n';
 				invalid_queues = true;
 			}
 		}

@@ -25,7 +25,6 @@
 
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
-#include "vulkan_wrapper/physical_device.h"
 #include "vulkan_wrapper/window.h"
 
 static const std::string AppName = "VulkanTest";
@@ -53,28 +52,32 @@ int main(int argc, char** argv) {
 	};
 
 	auto instance = vkw::Instance(app_info, instance_info, debug_info);
+	auto& physical_device = instance.getPhysicalDevice(0);
 
 	auto window = vkw::Window(instance.getVkInstance(), "My Window", {1280, 1024});
 
 	auto device_info = vkw::LogicalDevice::LogicalDeviceInfo{
-		.physical_device = instance.getPhysicalDevice(0),
+		.physical_device = physical_device,
 		.features = {},
 		.extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}
 	};
 
-	const auto [graphics_queue, present_queue] = vkw::util::findGraphicsAndPresentQueueFamilies(device_info.physical_device, window.getSurface());
+	// Add a graphics queue
+	device_info.addQueues(vk::QueueFlagBits::eGraphics, 1.0f);
 
-	if (not graphics_queue.has_value()) {
-		throw std::runtime_error("No available graphics queue family");
+	// Add a queue which supports present
+	for (auto family_idx : std::views::iota(size_t{0}, physical_device.getQueueFamilyProperties().size())) {
+		if (physical_device.getSurfaceSupportKHR(family_idx, *window.getSurface())) {
+			device_info.addQueues(family_idx, 1.0f);
+			break;
+		}
 	}
-	if (not present_queue.has_value()) {
-		throw std::runtime_error("No available present queue family");
-	}
-
-	device_info.addQueues(graphics_queue.value(), vk::QueueFlagBits::eGraphics, 1.0f);
 
 	auto logical_device = vkw::LogicalDevice{device_info};
-	//logical_device.getQueue(vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute);
+
+	if (logical_device.getPresentQueues(window.getSurface()).empty()) {
+		throw std::runtime_error("No queues with present support");
+	}
 
 /*
 
