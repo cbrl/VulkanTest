@@ -158,7 +158,7 @@ public:
 
 			// Map every combination of the flags, other than the full combination, since that
 			// mapping already exists.
-			for (size_t permutation = (1 << separated_flags.size()) - 2; permutation > 0; --permutation) {
+			for (size_t permutation = (1 << separated_flags.size()) - 2; permutation != 0; --permutation) {
 				auto mask = vk::QueueFlags::MaskType{0};
 
 				for (size_t idx = 0; idx < separated_flags.size(); ++idx) {
