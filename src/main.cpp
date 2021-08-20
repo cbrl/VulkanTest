@@ -25,6 +25,7 @@
 
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
+#include "vulkan_wrapper/render_pass.h"
 #include "vulkan_wrapper/window.h"
 
 static const std::string AppName = "VulkanTest";
