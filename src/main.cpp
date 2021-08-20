@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	auto logical_device = vkw::LogicalDevice{device_info};
+	auto logical_device = vkw::LogicalDevice(device_info);
 
 	if (logical_device.getPresentQueues(window.getSurface()).empty()) {
 		throw std::runtime_error("No queues with present support");

@@ -155,6 +155,7 @@ public:
 		for (const auto& family : device_info.queue_family_info_list) {
 			const auto flags = family.flags;
 			const auto separated_flags = util::separateFlags(flags);
+			assert(!separated_flags.empty());
 
 			// Map every combination of the flags, other than the full combination, since that
 			// mapping already exists.
