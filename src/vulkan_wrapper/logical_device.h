@@ -141,7 +141,7 @@ public:
 			const auto flags = family.flags;
 			const auto flag_mask = static_cast<vk::QueueFlags::MaskType>(flags);
 
-			for (auto queue_idx : std::views::iota(uint32_t{0}, static_cast<uint32_t>(family.queues.size()))) {
+			for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
 				auto queue = std::make_unique<Queue>(*device, family.family_idx, queue_idx);
 				queue_map[flag_mask].push_back(std::ref(*queue));
 				queues.push_back(std::move(queue));
@@ -159,17 +159,17 @@ public:
 
 			// Map every combination of the flags, other than the full combination, since that
 			// mapping already exists.
-			for (size_t permutation = (1 << separated_flags.size()) - 2; permutation != 0; --permutation) {
+			for (size_t permutation = (1ull << separated_flags.size()) - 2; permutation != 0; --permutation) {
 				auto mask = vk::QueueFlags::MaskType{0};
 
-				for (size_t idx = 0; idx < separated_flags.size(); ++idx) {
+				for (auto idx : std::views::iota(size_t{0}, separated_flags.size())) {
 					if (permutation & (size_t{1} << idx)) {
 						mask |= static_cast<vk::QueueFlags::MaskType>(separated_flags[idx]);
 					}
 				}
 
-				for (auto queue_idx : std::views::iota(size_t{0}, family.queues.size())) {
-					auto& queue = getQueue(flags, static_cast<uint32_t>(queue_idx));
+				for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
+					auto& queue = getQueue(flags, queue_idx);
 					queue_map[mask].push_back(std::ref(queue));
 				}
 			}

@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 	device_info.addQueues(vk::QueueFlagBits::eGraphics, 1.0f);
 
 	// Add a queue which supports present
-	for (auto family_idx : std::views::iota(size_t{0}, physical_device.getQueueFamilyProperties().size())) {
+	for (auto family_idx : std::views::iota(uint32_t{0}, physical_device.getQueueFamilyProperties().size())) {
 		if (physical_device.getSurfaceSupportKHR(family_idx, *window.getSurface())) {
 			device_info.addQueues(family_idx, 1.0f);
 			break;
@@ -79,7 +79,6 @@ int main(int argc, char** argv) {
 	if (logical_device.getPresentQueues(window.getSurface()).empty()) {
 		throw std::runtime_error("No queues with present support");
 	}
-
 /*
 
 	// Window

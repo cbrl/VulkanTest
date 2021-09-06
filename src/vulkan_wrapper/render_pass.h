@@ -38,7 +38,7 @@ public:
 			auto vk_image_views = std::vector<vk::ImageView>(attachment.size());
 
 			std::ranges::copy(
-				std::views::transform(attachment, [](const auto& v) { return *v; }),
+				std::views::transform(attachment, &vk::raii::ImageView::operator*),
 				std::back_inserter(vk_image_views)
 			);
 
