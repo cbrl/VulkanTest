@@ -28,6 +28,29 @@ public:
 		createFramebuffers(target_attachments, area_rect);
 	}
 
+	auto add(const vk::AttachmentDescription& attachment) -> void {
+		attachment_descriptions.push_back(attachment);
+	}
+
+	auto setClearValues(const std::vector<vk::ClearValue>& values) -> void {
+		clear_values = values;
+	}
+
+	auto getClearValues() const noexcept -> const std::vector<vk::ClearValue>& {
+		return clear_values;
+	}
+
+	auto getRenderPassBeginInfo(uint32_t frame) -> vk::RenderPassBeginInfo {
+		return vk::RenderPassBeginInfo{
+			**render_pass,
+			*framebuffers[frame],
+			area,
+			clear_values
+		};
+	}
+
+private:
+
 	auto createFramebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
 		assert(framebuffers.empty());
 
@@ -55,28 +78,6 @@ public:
 		}
 	}
 
-	auto add(const vk::AttachmentDescription& attachment) -> void {
-		attachment_descriptions.push_back(attachment);
-	}
-
-	auto setClearValues(const std::vector<vk::ClearValue>& values) -> void {
-		clear_values = values;
-	}
-
-	auto getClearValues() const noexcept -> const std::vector<vk::ClearValue>& {
-		return clear_values;
-	}
-
-	auto getRenderPassBeginInfo(uint32_t frame) -> vk::RenderPassBeginInfo {
-		return vk::RenderPassBeginInfo{
-			**render_pass,
-			*framebuffers[frame],
-			area,
-			clear_values
-		};
-	}
-
-private:
 	std::reference_wrapper<vk::raii::Device> device;
 	std::unique_ptr<vk::raii::RenderPass> render_pass;
 	std::vector<vk::raii::Framebuffer> framebuffers;
