@@ -14,8 +14,8 @@
 namespace vkw {
 
 namespace util {
-auto getSurfaceExtensions() -> std::vector<const char*> {
-	std::vector<const char*> extensions;
+auto get_surface_extensions() -> std::vector<const char*> {
+	auto extensions = std::vector<const char*>{};
 	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 	extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
@@ -42,9 +42,9 @@ auto getSurfaceExtensions() -> std::vector<const char*> {
 }
 } //namespace util
 
-class Instance {
+class instance {
 public:
-	struct AppInfo {
+	struct app_info {
 		std::string app_name = "VulkanApp";
 		uint32_t app_version_major = 0;
 		uint32_t app_version_minor = 0;
@@ -58,98 +58,98 @@ public:
 		uint32_t api_version = VK_API_VERSION_1_0;
 	};
 
-	struct InstanceInfo {
+	struct instance_info {
 		std::vector<const char*> layers = {};
 		std::vector<const char*> extensions = {};
 	};
 
-	struct DebugInfo {
+	struct debug_info {
 		bool utils = false;
 		bool validation = false;
 	};
 
-	Instance(const AppInfo& app_config, const InstanceInfo& instance_config, const DebugInfo& debug_config)
+	instance(const app_info& app_config, const instance_info& instance_config, const debug_info& debug_config)
 		: context(std::make_unique<vk::raii::Context>())
-		, app_info(app_config)
-		, instance_info(instance_config)
-		, debug_info(debug_config) {
+		, app_config(app_config)
+		, instance_config(instance_config)
+		, debug_config(debug_config) {
 
 		// Enumerate layer and extension properties
 		layer_properties     = context->enumerateInstanceLayerProperties();
 		extension_properties = context->enumerateInstanceExtensionProperties();
 
 		// Validate the extensions/layers, and add requested debug extensions/layers.
-		validateInstanceInfo();
+		validate_instance_info();
 
 		// Create the instance
-		createInstance();
+		create_instance();
 
 		// Enumerate physical devices
-		physical_devices = vk::raii::PhysicalDevices(*instance);
+		physical_devices = vk::raii::PhysicalDevices(*vk_instance);
 	}
 
 
 	[[nodiscard]]
-	auto getAppInfo() const noexcept -> const AppInfo& {
-		return app_info;
+	auto get_app_info() const noexcept -> const app_info& {
+		return app_config;
 	}
 
 	[[nodiscard]]
-	auto getInstanceInfo() const noexcept -> const InstanceInfo& {
-		return instance_info;
+	auto get_instance_info() const noexcept -> const instance_info& {
+		return instance_config;
 	}
 
 	[[nodiscard]]
-	auto getDebugInfo() const noexcept -> const DebugInfo& {
-		return debug_info;
+	auto get_debug_info() const noexcept -> const debug_info& {
+		return debug_config;
 	}
 
 	[[nodiscard]]
-	auto getVkInstance() -> vk::raii::Instance& {
-		return *instance;
+	auto get_vk_instance() -> vk::raii::Instance& {
+		return *vk_instance;
 	}
 
 	[[nodiscard]]
-	auto getVkInstance() const -> const vk::raii::Instance& {
-		return *instance;
+	auto get_vk_instance() const -> const vk::raii::Instance& {
+		return *vk_instance;
 	}
 
 	[[nodiscard]]
-	auto getLayerProperties() const noexcept -> const std::vector<vk::LayerProperties>& {
+	auto get_layer_properties() const noexcept -> const std::vector<vk::LayerProperties>& {
 		return layer_properties;
 	}
 
 	[[nodiscard]]
-	auto getExtensionProperties() const noexcept -> const std::vector<vk::ExtensionProperties>& {
+	auto get_extension_properties() const noexcept -> const std::vector<vk::ExtensionProperties>& {
 		return extension_properties;
 	}
 
 	[[nodiscard]]
-	auto getPhysicalDevice(uint32_t idx) -> vk::raii::PhysicalDevice& {
+	auto get_physical_device(uint32_t idx) -> vk::raii::PhysicalDevice& {
 		return physical_devices.at(idx);
 	}
 
 	[[nodiscard]]
-	auto getPhysicalDevice(uint32_t idx) const -> const vk::raii::PhysicalDevice& {
+	auto get_physical_device(uint32_t idx) const -> const vk::raii::PhysicalDevice& {
 		return physical_devices.at(idx);
 	}
 
 	[[nodiscard]]
-	auto getPhysicalDevices() noexcept -> std::vector<vk::raii::PhysicalDevice>& {
+	auto get_physical_devices() noexcept -> std::vector<vk::raii::PhysicalDevice>& {
 		return physical_devices;
 	}
 
 	[[nodiscard]]
-	auto getPhysicalDevices() const noexcept -> const std::vector<vk::raii::PhysicalDevice>& {
+	auto get_physical_devices() const noexcept -> const std::vector<vk::raii::PhysicalDevice>& {
 		return physical_devices;
 	}
 
 private:
 
-	auto validateInstanceInfo() -> void {
+	auto validate_instance_info() -> void {
 		// Add the debug utils layer if requested
-		if (debug_info.utils) {
-			const bool has_debug_utils = std::ranges::any_of(instance_info.extensions, [](const char* ext) {
+		if (debug_config.utils) {
+			const bool has_debug_utils = std::ranges::any_of(instance_config.extensions, [](const char* ext) {
 				return strcmp(ext, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0;
 			});
 
@@ -158,13 +158,13 @@ private:
 			});
 
 			if (!has_debug_utils && debug_utils_exist) {
-				instance_info.extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+				instance_config.extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			}
 		}
 
 		// Add the validation layer if requested
-		if (debug_info.validation) {
-			const auto has_validation_layer = std::ranges::any_of(instance_info.layers, [](const char* layer) {
+		if (debug_config.validation) {
+			const auto has_validation_layer = std::ranges::any_of(instance_config.layers, [](const char* layer) {
 				return strcmp(layer, "VK_LAYER_KHRONOS_validation") == 0;
 			});
 
@@ -173,31 +173,31 @@ private:
 			});
 
 			if (!has_validation_layer && validation_layer_exists) {
-				instance_info.layers.push_back("VK_LAYER_KHRONOS_validation");
+				instance_config.layers.push_back("VK_LAYER_KHRONOS_validation");
 			}
 		}
 
 		// Ensure all specified layers and extensions are available
-		debug::validateLayers(instance_info.layers, layer_properties);
-		debug::validateExtensions(instance_info.extensions, extension_properties);
+		debug::validate_layers(instance_config.layers, layer_properties);
+		debug::validate_extensions(instance_config.extensions, extension_properties);
 	}
 
-	auto createInstance() -> void {
+	auto create_instance() -> void {
 		// Build app/engine versions
-		const auto app_version    = VK_MAKE_VERSION(app_info.app_version_major, app_info.app_version_minor, app_info.app_vesrion_patch);
-		const auto engine_version = VK_MAKE_VERSION(app_info.engine_version_major, app_info.engine_version_minor, app_info.engine_vesrion_patch);
+		const auto app_version    = VK_MAKE_VERSION(app_config.app_version_major, app_config.app_version_minor, app_config.app_vesrion_patch);
+		const auto engine_version = VK_MAKE_VERSION(app_config.engine_version_major, app_config.engine_version_minor, app_config.engine_vesrion_patch);
 
 
 		// Application info struct
 		const auto application_info = vk::ApplicationInfo(
-			app_info.app_name.c_str(),
+			app_config.app_name.c_str(),
 			app_version,
-			app_info.engine_name.c_str(),
+			app_config.engine_name.c_str(),
 			engine_version,
-			app_info.api_version
+			app_config.api_version
 		);
 
-		if (debug_info.utils) {
+		if (debug_config.utils) {
 			const auto severity_flags = vk::DebugUtilsMessageSeverityFlagsEXT(
 				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
 				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
@@ -211,29 +211,29 @@ private:
 
 			// Instance create info structure chain
 			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT>(
-				{{}, &application_info, instance_info.layers, instance_info.extensions},
-				{{}, severity_flags, message_type_flags, &debug::debugUtilsMessengerCallback}
+				{{}, &application_info, instance_config.layers, instance_config.extensions},
+				{{}, severity_flags, message_type_flags, &debug::debug_utils_messenger_callback}
 			);
 
 			// Create the instance
-			instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
+			vk_instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
 		}
 		else {
 			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo>(
-				{{}, &application_info, instance_info.layers, instance_info.extensions}
+				{{}, &application_info, instance_config.layers, instance_config.extensions}
 			);
 			
-			instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
+			vk_instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
 		}
 	}
 
 
-	AppInfo app_info;
-	InstanceInfo instance_info;
-	DebugInfo debug_info;
+	app_info app_config;
+	instance_info instance_config;
+	debug_info debug_config;
 
 	std::unique_ptr<vk::raii::Context>  context;
-	std::unique_ptr<vk::raii::Instance> instance;
+	std::unique_ptr<vk::raii::Instance> vk_instance;
 
 	std::vector<vk::LayerProperties> layer_properties;
 	std::vector<vk::ExtensionProperties> extension_properties;

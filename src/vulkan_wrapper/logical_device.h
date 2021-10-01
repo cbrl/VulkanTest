@@ -15,20 +15,20 @@
 
 namespace vkw {
 
-class LogicalDevice {
+class logical_device {
 public:
-	struct LogicalDeviceInfo {
-		auto addAllQueues(float priority) -> void {
+	struct logical_device_info {
+		auto add_all_queues(float priority) -> void {
 			queue_family_info_list.clear();
 			const auto properties = physical_device.get().getQueueFamilyProperties();
 
 			for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
 				const auto& prop = properties[family_idx];
-				addQueues(static_cast<uint32_t>(family_idx), priority, prop.queueCount);
+				add_queues(static_cast<uint32_t>(family_idx), priority, prop.queueCount);
 			}
 		}
 
-		auto addQueues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> bool {
+		auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> bool {
 			const auto properties = physical_device.get().getQueueFamilyProperties();
 
 			// Enumerate available queue properties, and subtract the number of currently added
@@ -50,23 +50,23 @@ public:
 			}
 
 			// Try to find a queue with the exact combination of flags specified
-			const auto exact_idx = util::findQueueFamilyIndexStrong(available_props, flags);
+			const auto exact_idx = util::find_queue_family_index_strong(available_props, flags);
 			if (exact_idx.has_value() && (available_props[exact_idx.value()].queueCount >= count)) {
-				addQueues(exact_idx.value(), priority, count);
+				add_queues(exact_idx.value(), priority, count);
 				return true;
 			}
 
 			// If no queues with the exact flags were found, then add the first one which has a match.
-			const auto weak_idx = util::findQueueFamilyIndexWeak(available_props, flags);
+			const auto weak_idx = util::find_queue_family_index_weak(available_props, flags);
 			if (weak_idx.has_value() && (available_props[weak_idx.value()].queueCount >= count)) {
-				addQueues(weak_idx.value(), priority, count);
+				add_queues(weak_idx.value(), priority, count);
 				return true;
 			}
 
 			return false;
 		}
 
-		auto addQueues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
+		auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
 			for (auto& family_info : queue_family_info_list) {
 				if (family_info.family_idx == family_idx) {
 					for (auto i : std::views::iota(uint32_t{0}, count)) {
@@ -88,13 +88,13 @@ public:
 		std::reference_wrapper<vk::raii::PhysicalDevice> physical_device;
 		vk::PhysicalDeviceFeatures features;
 		std::vector<const char*> extensions;
-		std::vector<QueueFamilyInfo> queue_family_info_list;
+		std::vector<queue_family_info> queue_family_info_list;
 	};
 
-	LogicalDevice(const LogicalDeviceInfo& info) : device_info(info) {
+	logical_device(const logical_device_info& info) : device_info(info) {
 		// Validate the queues and extensions
-		debug::validateQueues(device_info.queue_family_info_list, device_info.physical_device.get().getQueueFamilyProperties());
-		debug::validateExtensions(device_info.extensions, device_info.physical_device.get().enumerateDeviceExtensionProperties());
+		debug::validate_queues(device_info.queue_family_info_list, device_info.physical_device.get().getQueueFamilyProperties());
+		debug::validate_extensions(device_info.extensions, device_info.physical_device.get().enumerateDeviceExtensionProperties());
 
 
 		// Build the queue create info list
@@ -142,9 +142,9 @@ public:
 			const auto flag_mask = static_cast<vk::QueueFlags::MaskType>(flags);
 
 			for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
-				auto queue = std::make_unique<Queue>(*device, family.family_idx, queue_idx);
-				queue_map[flag_mask].push_back(std::ref(*queue));
-				queues.push_back(std::move(queue));
+				auto queue_ptr = std::make_unique<queue>(*device, family.family_idx, queue_idx);
+				queue_map[flag_mask].push_back(std::ref(*queue_ptr));
+				queues.push_back(std::move(queue_ptr));
 			}
 		}
 
@@ -154,7 +154,7 @@ public:
 		// Graphics|Transfer flag as well.
 		for (const auto& family : device_info.queue_family_info_list) {
 			const auto flags = family.flags;
-			const auto separated_flags = util::separateFlags(flags);
+			const auto separated_flags = util::separate_flags(flags);
 			assert(!separated_flags.empty());
 
 			// Map every combination of the flags, other than the full combination, since that
@@ -169,7 +169,7 @@ public:
 				}
 
 				for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
-					auto& queue = getQueue(flags, queue_idx);
+					auto& queue = get_queue(flags, queue_idx);
 					queue_map[mask].push_back(std::ref(queue));
 				}
 			}
@@ -177,42 +177,42 @@ public:
 	}
 
 	[[nodiscard]]
-	auto getDeviceInfo() const -> const LogicalDeviceInfo& {
+	auto get_device_info() const -> const logical_device_info& {
 		return device_info;
 	}
 
 	[[nodiscard]]
-	auto getVkPhysicalDevice() -> vk::raii::PhysicalDevice& {
+	auto get_vk_physical_device() -> vk::raii::PhysicalDevice& {
 		return device_info.physical_device;
 	}
 
 	[[nodiscard]]
-	auto getVkPhysicalDevice() const -> const vk::raii::PhysicalDevice& {
+	auto get_vk_physical_device() const -> const vk::raii::PhysicalDevice& {
 		return device_info.physical_device;
 	}
 
 	[[nodiscard]]
-	auto getVkDevice() -> vk::raii::Device& {
+	auto get_vk_device() -> vk::raii::Device& {
 		return *device;
 	}
 
 	[[nodiscard]]
-	auto getVkDevice() const -> const vk::raii::Device& {
+	auto get_vk_device() const -> const vk::raii::Device& {
 		return *device;
 	}
 
 	[[nodiscard]]
-	auto getQueue(vk::QueueFlags flag, uint32_t queue_idx) -> Queue& {
-		return getQueues(flag).at(queue_idx);
+	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) -> queue& {
+		return get_queues(flag).at(queue_idx);
 	}
 
 	[[nodiscard]]
-	auto getQueues(vk::QueueFlags flag) -> const std::vector<std::reference_wrapper<Queue>>& {
+	auto get_queues(vk::QueueFlags flag) -> const std::vector<std::reference_wrapper<queue>>& {
 		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)];
 	}
 
 	[[nodiscard]]
-	auto getPresentQueue(vk::raii::SurfaceKHR& surface) -> Queue* {
+	auto get_present_queue(vk::raii::SurfaceKHR& surface) -> queue* {
 		for (auto& queue : queues) {
 			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
 				return queue.get();
@@ -222,8 +222,8 @@ public:
 	}
 
 	[[nodiscard]]
-	auto getPresentQueues(vk::raii::SurfaceKHR& surface) -> std::vector<std::reference_wrapper<Queue>> {
-		auto results = std::vector<std::reference_wrapper<Queue>>{};
+	auto get_present_queues(vk::raii::SurfaceKHR& surface) -> std::vector<std::reference_wrapper<queue>> {
+		auto results = std::vector<std::reference_wrapper<queue>>{};
 
 		for (auto& queue : queues) {
 			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
@@ -236,11 +236,11 @@ public:
 
 private:
 
-	LogicalDeviceInfo device_info;
+	logical_device_info device_info;
 	std::unique_ptr<vk::raii::Device> device;
 
-	std::vector<std::unique_ptr<Queue>> queues;
-	std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<Queue>>> queue_map;
+	std::vector<std::unique_ptr<queue>> queues;
+	std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<queue>>> queue_map;
 };
 
 } //namespace vkw

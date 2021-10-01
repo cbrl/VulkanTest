@@ -10,14 +10,14 @@
 
 namespace vkw {
 
-class Window {
+class window {
 public:
-	Window(vk::raii::Instance& instance, const std::string& name, const vk::Extent2D& size) : name(name), size(size) {
+	window(vk::raii::Instance& instance, const std::string& name, const vk::Extent2D& size) : name(name), size(size) {
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 		handle = glfwCreateWindow(size.width, size.height, name.c_str(), nullptr, nullptr);
-		if (!handle) {
+		if (not handle) {
 			throw std::runtime_error("Failed to create window");
 		}
 
@@ -31,38 +31,39 @@ public:
 		surface = std::make_unique<vk::raii::SurfaceKHR>(instance, surface_khr);
 	}
 
-	~Window() {
+	~window() {
 		glfwDestroyWindow(handle);
 	}
 
+
 	[[nodiscard]]
-	auto getName() const -> const std::string& {
+	auto get_handle() noexcept -> GLFWwindow* {
+		return handle;
+	}
+
+	[[nodiscard]]
+	auto get_handle() const noexcept -> const GLFWwindow* {
+		return handle;
+	}
+
+	[[nodiscard]]
+	auto get_surface() -> vk::raii::SurfaceKHR& {
+		return *surface;
+	}
+
+	[[nodiscard]]
+	auto get_surface() const -> const vk::raii::SurfaceKHR& {
+		return *surface;
+	}
+
+	[[nodiscard]]
+	auto get_name() const noexcept -> const std::string& {
 		return name;
 	}
 
 	[[nodiscard]]
-	auto getSize() const -> const vk::Extent2D& {
+	auto get_size() const noexcept -> const vk::Extent2D& {
 		return size;
-	}
-
-	[[nodiscard]]
-	auto getHandle() noexcept -> GLFWwindow* {
-		return handle;
-	}
-
-	[[nodiscard]]
-	auto getHandle() const noexcept -> const GLFWwindow* {
-		return handle;
-	}
-
-	[[nodiscard]]
-	auto getSurface() -> vk::raii::SurfaceKHR& {
-		return *surface;
-	}
-
-	[[nodiscard]]
-	auto getSurface() const -> const vk::raii::SurfaceKHR& {
-		return *surface;
 	}
 
 private:

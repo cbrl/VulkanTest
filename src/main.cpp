@@ -39,46 +39,43 @@ int main(int argc, char** argv) {
 	glfwInit();
 
 
-	const auto app_info = vkw::Instance::AppInfo{};
+	const auto app_info = vkw::instance::app_info{};
 
-	auto instance_info = vkw::Instance::InstanceInfo{
+	auto instance_info = vkw::instance::instance_info{
 		.layers = {},
-		.extensions = vkw::util::getSurfaceExtensions()
+		.extensions = vkw::util::get_surface_extensions()
 	};
 	instance_info.extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
-	const auto debug_info = vkw::Instance::DebugInfo{
+	const auto debug_info = vkw::instance::debug_info{
 		.utils = true,
 		.validation = true
 	};
 
-	auto instance = vkw::Instance(app_info, instance_info, debug_info);
-	auto& physical_device = instance.getPhysicalDevice(0);
+	auto instance = vkw::instance(app_info, instance_info, debug_info);
+	auto& physical_device = instance.get_physical_device(0);
 
-	auto window = vkw::Window(instance.getVkInstance(), "My Window", {1280, 1024});
+	auto window = vkw::window(instance.get_vk_instance(), "My Window", {1280, 1024});
 
-	auto device_info = vkw::LogicalDevice::LogicalDeviceInfo{
+	auto device_info = vkw::logical_device::logical_device_info{
 		.physical_device = physical_device,
 		.features = {},
 		.extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}
 	};
 
 	// Add a graphics queue
-	device_info.addQueues(vk::QueueFlagBits::eGraphics, 1.0f);
+	device_info.add_queues(vk::QueueFlagBits::eGraphics, 1.0f);
 
 	// Add a queue which supports present
-	for (auto family_idx : std::views::iota(uint32_t{0}, physical_device.getQueueFamilyProperties().size())) {
-		if (physical_device.getSurfaceSupportKHR(family_idx, *window.getSurface())) {
-			device_info.addQueues(family_idx, 1.0f);
-			break;
-		}
+	const auto present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
+	if (present_queue.has_value()) {
+		device_info.add_queues(*present_queue, 1.0f);
 	}
-
-	auto logical_device = vkw::LogicalDevice(device_info);
-
-	if (logical_device.getPresentQueues(window.getSurface()).empty()) {
+	else {
 		throw std::runtime_error("No queues with present support");
 	}
+
+	auto logical_device = vkw::logical_device(device_info);
 /*
 
 	// Window

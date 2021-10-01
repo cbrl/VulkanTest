@@ -7,19 +7,19 @@
 
 namespace vkw {
 
-struct QueueInfo {
+struct queue_info {
 	float priority = 1.0f;
 };
 
-struct QueueFamilyInfo {
+struct queue_family_info {
 	uint32_t family_idx;
 	vk::QueueFlags flags = vk::QueueFlagBits::eGraphics | vk::QueueFlagBits::eCompute | vk::QueueFlagBits::eTransfer;
-	std::vector<QueueInfo> queues;
+	std::vector<queue_info> queues;
 };
 
-class Queue : public vk::raii::Queue {
+class queue : public vk::raii::Queue {
 public:
-	Queue(vk::raii::Device& device, uint32_t family_idx, uint32_t queue_idx) :
+	queue(vk::raii::Device& device, uint32_t family_idx, uint32_t queue_idx) :
 		vk::raii::Queue(device, family_idx, queue_idx),
 		family_index(family_idx),
 		queue_index(queue_idx) {
@@ -32,7 +32,7 @@ public:
 
 namespace detail {
 [[nodiscard]]
-auto indexOf(const auto& list, auto&& test) -> std::optional<uint32_t> {
+auto index_of(const auto& list, auto&& test) -> std::optional<uint32_t> {
 	const auto it = std::ranges::find_if(list, test);
 	if (it == list.end()) {
 		return {};
@@ -45,33 +45,35 @@ auto indexOf(const auto& list, auto&& test) -> std::optional<uint32_t> {
 
 
 namespace util {
-// Find the first queue family which has the desired flags
+// Find the first queue family which has at least the specified flags
 [[nodiscard]]
-auto findQueueFamilyIndexWeak(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::optional<uint32_t> {
-	return detail::indexOf(queue_family_properties, [&](const auto& qfp) { return (qfp.queueFlags & flags) == flags; });
+auto find_queue_family_index_weak(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::optional<uint32_t> {
+	return detail::index_of(queue_family_properties, [&](const auto& qfp) { return (qfp.queueFlags & flags) == flags; });
 }
 
+// Find the first queue family which has at least the specified flags
 [[nodiscard]]
-auto findQueueFamilyIndexWeak(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::optional<uint32_t> {
-	return findQueueFamilyIndexWeak(physical_device.getQueueFamilyProperties(), flags);
-}
-
-
-// Find the first queue family which has the exact flags
-[[nodiscard]]
-auto findQueueFamilyIndexStrong(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::optional<uint32_t> {
-	return detail::indexOf(queue_family_properties, [&](const auto& qfp) { return qfp.queueFlags == flags; });
-}
-
-[[nodiscard]]
-auto findQueueFamilyIndexStrong(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::optional<uint32_t> {
-	return findQueueFamilyIndexStrong(physical_device.getQueueFamilyProperties(), flags);
+auto find_queue_family_index_weak(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::optional<uint32_t> {
+	return find_queue_family_index_weak(physical_device.getQueueFamilyProperties(), flags);
 }
 
 
-// Find all queue families which have the desired flags
+// Find the first queue family which exactly matches the specified flags
 [[nodiscard]]
-auto findQueueFamilyIndices(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::vector<uint32_t> {
+auto find_queue_family_index_strong(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::optional<uint32_t> {
+	return detail::index_of(queue_family_properties, [&](const auto& qfp) { return qfp.queueFlags == flags; });
+}
+
+// Find the first queue family which exactly matches the specified flags
+[[nodiscard]]
+auto find_queue_family_index_strong(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::optional<uint32_t> {
+	return find_queue_family_index_strong(physical_device.getQueueFamilyProperties(), flags);
+}
+
+
+// Find all queue families which have at least the specified flags
+[[nodiscard]]
+auto find_queue_family_indices_weak(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::vector<uint32_t> {
 	const auto is_valid = [&](uint32_t idx) {
 		return (queue_family_properties[idx].queueFlags & flags) == flags;
 	};
@@ -82,14 +84,61 @@ auto findQueueFamilyIndices(const std::vector<vk::QueueFamilyProperties>& queue_
 	return std::vector<uint32_t>(valid.begin(), valid.end());
 }
 
+// Find all queue families which have at least the specified flags
 [[nodiscard]]
-auto findQueueFamilyIndices(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::vector<uint32_t> {
-	return findQueueFamilyIndices(physical_device.getQueueFamilyProperties(), flags);
+auto find_queue_family_indices_weak(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::vector<uint32_t> {
+	return find_queue_family_indices_weak(physical_device.getQueueFamilyProperties(), flags);
+}
+
+
+// Find all queue families which exactly match the specified flags
+[[nodiscard]]
+auto find_queue_family_indices_strong(const std::vector<vk::QueueFamilyProperties>& queue_family_properties, vk::QueueFlags flags) -> std::vector<uint32_t> {
+	const auto is_valid = [&](uint32_t idx) {
+		return queue_family_properties[idx].queueFlags == flags;
+	};
+
+	auto indices = std::views::iota(uint32_t{0}, static_cast<uint32_t>(queue_family_properties.size()));
+	auto valid   = indices | std::views::filter(is_valid);
+
+	return std::vector<uint32_t>(valid.begin(), valid.end());
+}
+
+// Find all queue families which exactly match the specified flags
+[[nodiscard]]
+auto find_queue_family_indices_strong(const vk::raii::PhysicalDevice& physical_device, vk::QueueFlags flags) -> std::vector<uint32_t> {
+	return find_queue_family_indices_strong(physical_device.getQueueFamilyProperties(), flags);
+}
+
+
+// Find the first queue with present support for the specified surface
+[[nodiscard]]
+auto find_present_queue_index(const vk::raii::PhysicalDevice& physical_device, const vk::raii::SurfaceKHR& surface) -> std::optional<uint32_t> {
+	for (auto family_idx : std::views::iota(uint32_t{0}, physical_device.getQueueFamilyProperties().size())) {
+		if (physical_device.getSurfaceSupportKHR(family_idx, *surface)) {
+			return family_idx;
+		}
+	}
+	return {};
+}
+
+// Find the first queue with present support for the specified surface
+[[nodiscard]]
+auto find_present_queue_indices(const vk::raii::PhysicalDevice& physical_device, const vk::raii::SurfaceKHR& surface) -> std::vector<uint32_t> {
+	const auto is_valid = [&](uint32_t idx) {
+		return physical_device.getSurfaceSupportKHR(idx, *surface);
+	};
+
+	auto indices = std::views::iota(uint32_t{0}, static_cast<uint32_t>(physical_device.getQueueFamilyProperties().size()));
+	auto valid   = indices | std::views::filter(is_valid);
+
+	return std::vector<uint32_t>(valid.begin(), valid.end());
 }
 } //namespace util
 
+
 namespace debug {
-auto validateQueues(const std::vector<QueueFamilyInfo>& queue_family_info_list, const std::vector<vk::QueueFamilyProperties>& queue_family_properties) -> void {
+auto validate_queues(const std::vector<queue_family_info>& queue_family_info_list, const std::vector<vk::QueueFamilyProperties>& queue_family_properties) -> void {
 	if (queue_family_properties.empty()) {
 		std::cout << "No queue family properties" << std::endl;
 		throw std::runtime_error("No queue family properties");

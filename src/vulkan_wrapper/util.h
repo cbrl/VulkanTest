@@ -10,14 +10,14 @@
 namespace vkw::util {
 
 [[nodiscard]]
-auto containsProperty(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
+auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
 	return std::ranges::any_of(extension_properties, [&](const auto& prop) {
 		return strcmp(extension, prop.extensionName.data()) == 0;
 	});
 }
 
 [[nodiscard]]
-auto containsProperty(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
+auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
 	return std::ranges::any_of(layer_properties, [&](const auto& prop) {
 		return strcmp(layer, prop.layerName.data()) == 0;
 	});
@@ -25,7 +25,7 @@ auto containsProperty(const std::vector<vk::LayerProperties>& layer_properties, 
 
 template<typename BitType>
 [[nodiscard]]
-auto separateFlags(vk::Flags<BitType> flags) -> std::vector<BitType> {
+auto separate_flags(vk::Flags<BitType> flags) -> std::vector<BitType> {
 	auto mask = static_cast<vk::Flags<BitType>::MaskType>(flags);
 
 	auto result = std::vector<BitType>{};

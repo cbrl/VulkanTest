@@ -11,9 +11,9 @@
 namespace vkw {
 
 // TODO: support subpasses
-class RenderPass {
+class render_pass {
 public:
-	RenderPass(vk::raii::Device& device) : device(device) {
+	render_pass(vk::raii::Device& device) : device(device) {
 	}
 
 	auto create(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
@@ -24,25 +24,25 @@ public:
 			{}
 		};
 
-		render_pass = std::make_unique<vk::raii::RenderPass>(device, create_info);
-		createFramebuffers(target_attachments, area_rect);
+		pass = std::make_unique<vk::raii::RenderPass>(device, create_info);
+		create_framebuffers(target_attachments, area_rect);
 	}
 
 	auto add(const vk::AttachmentDescription& attachment) -> void {
 		attachment_descriptions.push_back(attachment);
 	}
 
-	auto setClearValues(const std::vector<vk::ClearValue>& values) -> void {
+	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
 		clear_values = values;
 	}
 
-	auto getClearValues() const noexcept -> const std::vector<vk::ClearValue>& {
+	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
 		return clear_values;
 	}
 
-	auto getRenderPassBeginInfo(uint32_t frame) -> vk::RenderPassBeginInfo {
+	auto get_render_pass_begin_info(uint32_t frame) -> vk::RenderPassBeginInfo {
 		return vk::RenderPassBeginInfo{
-			**render_pass,
+			**pass,
 			*framebuffers[frame],
 			area,
 			clear_values
@@ -51,7 +51,7 @@ public:
 
 private:
 
-	auto createFramebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+	auto create_framebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
 		assert(framebuffers.empty());
 
 		area = area_rect;
@@ -67,7 +67,7 @@ private:
 
 			const auto create_info = vk::FramebufferCreateInfo{
 				vk::FramebufferCreateFlags{},
-				**render_pass,
+				**pass,
 				vk_image_views,
 				area.extent.width,
 				area.extent.height,
@@ -79,7 +79,7 @@ private:
 	}
 
 	std::reference_wrapper<vk::raii::Device> device;
-	std::unique_ptr<vk::raii::RenderPass> render_pass;
+	std::unique_ptr<vk::raii::RenderPass> pass;
 	std::vector<vk::raii::Framebuffer> framebuffers;
 	std::vector<vk::AttachmentDescription> attachment_descriptions;
 	std::vector<vk::ClearValue> clear_values;
