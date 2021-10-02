@@ -8,12 +8,12 @@
 
 namespace vkw::debug {
 
-VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_messenger_callback(
+inline VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
 	const VkDebugUtilsMessengerCallbackDataEXT*  pCallbackData,
 	void*                                        pUserData
-) {
+) -> VkBool32 {
 #if !defined(NDEBUG)
 	if (pCallbackData->messageIdNumber == 648835635) {
 		// UNASSIGNED-khronos-Validation-debug-build-warning-message
@@ -60,7 +60,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_utils_messenger_callback(
 }
 
 
-auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
+inline auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
 	if (layer_properties.empty()) {
 		std::cout << "No layer properties" << std::endl;
 		throw std::runtime_error("No layer properties");
@@ -88,7 +88,7 @@ auto validate_layers(const std::vector<const char*>& layers, const std::vector<v
 }
 
 
-auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
+inline auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
 	if (ext_properties.empty()) {
 		std::cout << "No extension properties" << std::endl;
 		throw std::runtime_error("No extension properties");

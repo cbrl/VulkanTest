@@ -10,14 +10,14 @@
 namespace vkw::util {
 
 [[nodiscard]]
-auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
+inline auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
 	return std::ranges::any_of(extension_properties, [&](const auto& prop) {
 		return strcmp(extension, prop.extensionName.data()) == 0;
 	});
 }
 
 [[nodiscard]]
-auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
+inline auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
 	return std::ranges::any_of(layer_properties, [&](const auto& prop) {
 		return strcmp(layer, prop.layerName.data()) == 0;
 	});
