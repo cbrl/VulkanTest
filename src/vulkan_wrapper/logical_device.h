@@ -212,7 +212,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queue(vk::raii::SurfaceKHR& surface) -> queue* {
+	auto get_present_queue(const vk::raii::SurfaceKHR& surface) -> queue* {
 		for (auto& queue : queues) {
 			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
 				return queue.get();
@@ -222,7 +222,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(vk::raii::SurfaceKHR& surface) -> std::vector<std::reference_wrapper<queue>> {
+	auto get_present_queues(const vk::raii::SurfaceKHR& surface) -> std::vector<std::reference_wrapper<queue>> {
 		auto results = std::vector<std::reference_wrapper<queue>>{};
 
 		for (auto& queue : queues) {

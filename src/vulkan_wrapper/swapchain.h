@@ -29,7 +29,48 @@ public:
 		this->size          = size;
 		this->vsync         = vsync;
 		this->shared_queues = shared_queues;
+		create_impl();
 	}
+
+	auto resize(const vk::raii::PhysicalDevice& physical_device, vk::Extent2D new_size) -> void {
+		assert(device);
+		device->get_vk_device().waitIdle();
+
+		size = new_size;
+		create_impl();
+	}
+
+	[[nodiscard]]
+	auto get_size() -> vk::Extent2D {
+		return size;
+	}
+
+	[[nodiscard]]
+	auto get_format() -> vk::SurfaceFormatKHR {
+		return format;
+	}
+
+	[[nodiscard]]
+	auto get_vk_swapchain() -> vk::raii::SwapchainKHR& {
+		return *vk_swapchain;
+	}
+
+	[[nodiscard]]
+	auto get_vk_swapchain() const -> const vk::raii::SwapchainKHR& {
+		return *vk_swapchain;
+	}
+
+	[[nodiscard]]
+	auto get_images() const -> const std::vector<vk::Image>& {
+		return images;
+	}
+
+	[[nodiscard]]
+	auto get_image_views() const -> const std::vector<vk::raii::ImageView>& {
+		return image_views;
+	}
+
+private:
 
 	auto create_impl() -> void {
 		assert(device && surface);
@@ -96,46 +137,6 @@ public:
 		}
 	}
 
-	auto resize(const vk::raii::PhysicalDevice& physical_device, vk::Extent2D new_size) -> void {
-		assert(device);
-		device->get_vk_device().waitIdle();
-
-		size = new_size;
-		create_impl();
-	}
-
-	[[nodiscard]]
-	auto get_size() -> vk::Extent2D {
-		return size;
-	}
-
-	[[nodiscard]]
-	auto get_format() -> vk::SurfaceFormatKHR {
-		return format;
-	}
-
-	[[nodiscard]]
-	auto get_vk_swapchain() -> vk::raii::SwapchainKHR& {
-		return *vk_swapchain;
-	}
-
-	[[nodiscard]]
-	auto get_vk_swapchain() const -> const vk::raii::SwapchainKHR& {
-		return *vk_swapchain;
-	}
-
-	[[nodiscard]]
-	auto get_images() const -> const std::vector<vk::Image>& {
-		return images;
-	}
-
-	[[nodiscard]]
-	auto get_image_views() const -> const std::vector<vk::raii::ImageView>& {
-		return image_views;
-	}
-
-private:
-
 	[[nodiscard]]
 	static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
 		static const vk::PresentModeKHR desired_modes[] = {
@@ -193,8 +194,8 @@ private:
 		}
 	}
 
-	const logical_device* device;
-	const vk::raii::SurfaceKHR* surface;
+	const logical_device* device = nullptr;
+	const vk::raii::SurfaceKHR* surface = nullptr;
 
 	vk::SurfaceFormatKHR format = {};
 	vk::ImageUsageFlags usage = {};

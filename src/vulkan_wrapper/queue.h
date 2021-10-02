@@ -19,7 +19,7 @@ struct queue_family_info {
 
 class queue : public vk::raii::Queue {
 public:
-	queue(vk::raii::Device& device, uint32_t family_idx, uint32_t queue_idx) :
+	queue(const vk::raii::Device& device, uint32_t family_idx, uint32_t queue_idx) :
 		vk::raii::Queue(device, family_idx, queue_idx),
 		family_index(family_idx),
 		queue_index(queue_idx) {

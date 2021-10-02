@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device};
 
-	render_pass.add(
+	render_pass.add_attachment(
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			swapchain.get_format().format,
@@ -133,10 +133,10 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-	render_pass.add(
+	/*render_pass.add_attachment(
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
-			depth_buffer.get_format(),
+			depth_buffer.get_format().format,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eDontCare,
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eDepthStencilAttachmentOptimal
 		}
-	);
+	);*/
 
 	auto image_views = std::vector<std::vector<vk::ImageView>>{};
 	image_views.resize(2);

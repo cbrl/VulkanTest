@@ -12,7 +12,7 @@ namespace vkw {
 
 class window {
 public:
-	window(vk::raii::Instance& instance, const std::string& name, const vk::Extent2D& size) : name(name), size(size) {
+	window(const vk::raii::Instance& instance, const std::string& name, const vk::Extent2D& size) : name(name), size(size) {
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
@@ -62,7 +62,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_size() const noexcept -> const vk::Extent2D& {
+	auto get_size() const noexcept -> vk::Extent2D {
 		return size;
 	}
 
