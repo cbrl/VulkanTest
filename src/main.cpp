@@ -29,12 +29,13 @@
 #include "vulkan_wrapper/swapchain.h"
 #include "vulkan_wrapper/window.h"
 
+/*
 static const std::string AppName = "VulkanTest";
 static const std::string EngineName = "VulkanEngine";
 
 static constexpr uint32_t Width = 800;
 static constexpr uint32_t Height = 600;
-
+*/
 
 int main(int argc, char** argv) {
 	glfwInit();

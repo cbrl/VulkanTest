@@ -14,7 +14,7 @@ namespace vkw {
 class swapchain {
 public:
 	auto create(
-		const vkw::logical_device& device,
+		const logical_device& device,
 		const vk::raii::SurfaceKHR& surface,
 		vk::SurfaceFormatKHR format,
 		vk::ImageUsageFlags usage,
@@ -188,7 +188,7 @@ private:
 		}
 	}
 
-	const vkw::logical_device* device;
+	const logical_device* device;
 	const vk::raii::SurfaceKHR* surface;
 
 	vk::SurfaceFormatKHR format = {};
