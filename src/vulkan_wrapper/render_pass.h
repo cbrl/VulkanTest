@@ -5,7 +5,7 @@
 #include <ranges>
 #include <vector>
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 
 
 namespace vkw {
@@ -13,48 +13,23 @@ namespace vkw {
 // TODO: support subpasses
 class render_pass {
 public:
-	render_pass(vk::raii::Device& device) : device(device) {
-	}
+	render_pass(
+		vk::raii::Device& device,
+		const std::vector<vk::AttachmentDescription>& attachment_descriptions,
+		const std::vector<std::vector<vk::raii::ImageView>>& target_attachments,
+		const vk::Rect2D& area_rect
+	) : area(area_rect) {
 
-	auto create(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+		// Create the render pass
 		const auto create_info = vk::RenderPassCreateInfo{
 			vk::RenderPassCreateFlags{},
 			attachment_descriptions,
 			{},
 			{}
 		};
-
 		pass = std::make_unique<vk::raii::RenderPass>(device, create_info);
-		create_framebuffers(target_attachments, area_rect);
-	}
 
-	auto add(const vk::AttachmentDescription& attachment) -> void {
-		attachment_descriptions.push_back(attachment);
-	}
-
-	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
-		clear_values = values;
-	}
-
-	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
-		return clear_values;
-	}
-
-	auto get_render_pass_begin_info(uint32_t frame) -> vk::RenderPassBeginInfo {
-		return vk::RenderPassBeginInfo{
-			**pass,
-			*framebuffers[frame],
-			area,
-			clear_values
-		};
-	}
-
-private:
-
-	auto create_framebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
-		assert(framebuffers.empty());
-
-		area = area_rect;
+		// Create the framebuffers
 		framebuffers.reserve(target_attachments.size());
 
 		for (const auto& attachment : target_attachments) {
@@ -78,10 +53,27 @@ private:
 		}
 	}
 
-	std::reference_wrapper<vk::raii::Device> device;
+	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
+		clear_values = values;
+	}
+
+	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
+		return clear_values;
+	}
+
+	auto get_render_pass_begin_info(uint32_t frame) -> vk::RenderPassBeginInfo {
+		return vk::RenderPassBeginInfo{
+			**pass,
+			*framebuffers[frame],
+			area,
+			clear_values
+		};
+	}
+
+private:
+
 	std::unique_ptr<vk::raii::RenderPass> pass;
 	std::vector<vk::raii::Framebuffer> framebuffers;
-	std::vector<vk::AttachmentDescription> attachment_descriptions;
 	std::vector<vk::ClearValue> clear_values;
 	vk::Rect2D area;
 };

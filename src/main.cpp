@@ -26,6 +26,7 @@
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
 #include "vulkan_wrapper/render_pass.h"
+#include "vulkan_wrapper/swapchain.h"
 #include "vulkan_wrapper/window.h"
 
 static const std::string AppName = "VulkanTest";
@@ -67,12 +68,18 @@ int main(int argc, char** argv) {
 	device_info.add_queues(vk::QueueFlagBits::eGraphics, 1.0f);
 
 	// Add a queue which supports present
-	const auto present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
-	if (present_queue.has_value()) {
-		device_info.add_queues(*present_queue, 1.0f);
-	}
-	else {
-		throw std::runtime_error("No queues with present support");
+	const auto has_present_queue = std::ranges::any_of(device_info.queue_family_info_list, [&](const auto& qfi) {
+		return physical_device.getSurfaceSupportKHR(qfi.family_idx, *window.get_surface()) && !qfi.queues.empty();
+	});
+
+	if (not has_present_queue) {
+		const auto present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
+		if (present_queue.has_value()) {
+			device_info.add_queues(*present_queue, 1.0f);
+		}
+		else {
+			throw std::runtime_error("No queues with present support");
+		}
 	}
 
 	auto logical_device = vkw::logical_device(device_info);

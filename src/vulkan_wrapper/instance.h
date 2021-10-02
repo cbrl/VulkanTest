@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 
 #include "debug.h"
 
