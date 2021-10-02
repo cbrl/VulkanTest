@@ -7,7 +7,6 @@ namespace vkw {
 
 class swapchain {
 public:
-	[[nodiscard]]
 	auto create(
 		const vk::raii::Device& device,
 		const vk::raii::PhysicalDevice& physical_device,
@@ -17,7 +16,7 @@ public:
 		vk::Extent2D size,
 		bool vsync,
 		std::vector<uint32_t> shared_queues = {}
-	) -> bool {
+	) -> void {
 		const auto surface_capabilities  = physical_device.getSurfaceCapabilitiesKHR(*surface);
 		const auto surface_present_mdoes = physical_device.getSurfacePresentModesKHR(*surface);
 
@@ -106,6 +105,7 @@ public:
 
 private:
 
+	[[nodiscard]]
 	static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
 		static const vk::PresentModeKHR desired_modes[] = {
 			vk::PresentModeKHR::eMailbox,
@@ -122,6 +122,7 @@ private:
 		return vk::PresentModeKHR::eFifo;
 	}
 
+	[[nodiscard]]
 	static auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_capabilities, vk::Extent2D requested_size) -> vk::Extent2D {
 		if (surface_capabilities.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
 			// If the surface size is undefined, the size is set to the size of the images requested.
@@ -135,6 +136,7 @@ private:
 		}
 	}
 
+	[[nodiscard]]
 	static auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::SurfaceTransformFlagBitsKHR {
 		if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
 			return vk::SurfaceTransformFlagBitsKHR::eIdentity;
@@ -144,6 +146,7 @@ private:
 		}
 	}
 
+	[[nodiscard]]
 	static auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::CompositeAlphaFlagBitsKHR {
 		if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) {
 			return vk::CompositeAlphaFlagBitsKHR::ePreMultiplied;

@@ -53,10 +53,10 @@ int main(int argc, char** argv) {
 		.validation = true
 	};
 
-	auto instance = vkw::instance(app_info, instance_info, debug_info);
+	auto instance = vkw::instance{app_info, instance_info, debug_info};
 	auto& physical_device = instance.get_physical_device(0);
 
-	auto window = vkw::window(instance.get_vk_instance(), "My Window", {1280, 1024});
+	auto window = vkw::window{instance.get_vk_instance(), "My Window", {1280, 1024}};
 
 	auto device_info = vkw::logical_device::logical_device_info{
 		.physical_device = physical_device,
@@ -82,9 +82,25 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	auto logical_device = vkw::logical_device(device_info);
-/*
+	auto logical_device = vkw::logical_device{device_info};
 
+	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device.getSurfaceFormatsKHR(*window.get_surface()));
+	if (not srgb_format.has_value()) {
+		throw std::runtime_error("No SRGB surface format");
+	}
+
+	auto swapchain = vkw::swapchain{};
+	swapchain.create(
+		logical_device.get_vk_device(),
+		logical_device.get_vk_physical_device(),
+		window.get_surface(),
+		*srgb_format,
+		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
+		window.get_size(),
+		false
+	);
+
+/*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});
 

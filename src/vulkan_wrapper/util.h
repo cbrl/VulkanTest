@@ -40,4 +40,28 @@ auto separate_flags(vk::Flags<BitType> flags) -> std::vector<BitType> {
 	return result;
 }
 
+[[nodiscard]]
+inline auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
+	// Priority list of formats to look for
+	static const vk::Format desired_formats[] = {
+		vk::Format::eR8G8B8A8Unorm,
+		vk::Format::eB8G8R8A8Unorm,
+		vk::Format::eR8G8B8Unorm,
+		vk::Format::eB8G8R8Unorm,
+	};
+
+	// Look for a desired format that's in the SRGB color space
+	for (const auto& format : desired_formats) {
+		const auto it = std::ranges::find_if(formats, [format](const vk::SurfaceFormatKHR& f) {
+			return (f.format == format) && (f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear);
+		});
+
+		if (it != formats.end()) {
+			return *it;
+		}
+	}
+
+	return {};
+}
+
 } //namespace vkw::util
