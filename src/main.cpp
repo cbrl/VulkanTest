@@ -120,6 +120,11 @@ int main(int argc, char** argv) {
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device};
 
+	auto graphics_subpass = vkw::subpass{};
+	graphics_subpass.add_color_attachment(vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal});
+	graphics_subpass.set_depth_stencil_attachment(vk::AttachmentReference{1, vk::ImageLayout::eDepthStencilAttachmentOptimal});
+	render_pass.add_subpass(graphics_subpass);
+
 	render_pass.add_attachment(
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
@@ -133,6 +138,7 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
+
 	/*render_pass.add_attachment(
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
