@@ -1,6 +1,12 @@
 #pragma once
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include <vulkan/vulkan_raii.hpp>
+
+#include "logical_device.h"
 
 
 namespace vkw {
@@ -8,8 +14,7 @@ namespace vkw {
 class swapchain {
 public:
 	auto create(
-		const vk::raii::Device& device,
-		const vk::raii::PhysicalDevice& physical_device,
+		const vkw::logical_device& device,
 		const vk::raii::SurfaceKHR& surface,
 		vk::SurfaceFormatKHR format,
 		vk::ImageUsageFlags usage,
@@ -17,19 +22,32 @@ public:
 		bool vsync,
 		std::vector<uint32_t> shared_queues = {}
 	) -> void {
-		const auto surface_capabilities  = physical_device.getSurfaceCapabilitiesKHR(*surface);
-		const auto surface_present_mdoes = physical_device.getSurfacePresentModesKHR(*surface);
+		this->device        = &device;
+		this->surface       = &surface;
+		this->format        = format;
+		this->usage         = usage;
+		this->size          = size;
+		this->vsync         = vsync;
+		this->shared_queues = shared_queues;
+	}
+
+	auto create_impl() -> void {
+		assert(device && surface);
+
+		const auto& vk_device          = device->get_vk_device();
+		const auto& vk_physical_device = device->get_vk_physical_device();
+
+		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(**surface);
+		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(**surface);
 
 		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_mdoes);
 		const auto swapchain_extent = select_swapchain_extent(surface_capabilities, size);
 		const auto pre_transform    = select_transform(surface_capabilities);
 		const auto composite_alpha  = select_composite_alpha(surface_capabilities);
 
-		swapchain_size = swapchain_extent;
-
 		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagsKHR{},
-			*surface,
+			**surface,
 			surface_capabilities.minImageCount,
 			format.format,
 			format.colorSpace,
@@ -54,7 +72,7 @@ public:
 			swap_chain_create_info.pQueueFamilyIndices   = shared_queues.data();
 		}
 
-		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device, swap_chain_create_info);
+		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(vk_device, swap_chain_create_info);
 
 		const auto swap_images = vk_swapchain->getImages();
 		images.reserve(swap_images.size());
@@ -74,13 +92,21 @@ public:
 				subresource_range
 			};
 
-			image_views.emplace_back(device, image_view_create_info);
+			image_views.emplace_back(vk_device, image_view_create_info);
 		}
+	}
+
+	auto resize(const vk::raii::PhysicalDevice& physical_device, vk::Extent2D new_size) -> void {
+		assert(device);
+		device->get_vk_device().waitIdle();
+
+		size = new_size;
+		create_impl();
 	}
 
 	[[nodiscard]]
 	auto get_size() -> vk::Extent2D {
-		return swapchain_size;
+		return size;
 	}
 
 	[[nodiscard]]
@@ -162,10 +188,18 @@ private:
 		}
 	}
 
+	const vkw::logical_device* device;
+	const vk::raii::SurfaceKHR* surface;
+
+	vk::SurfaceFormatKHR format = {};
+	vk::ImageUsageFlags usage = {};
+	vk::Extent2D size = {};
+	bool vsync = false;
+	std::vector<uint32_t> shared_queues = {};
+
 	std::unique_ptr<vk::raii::SwapchainKHR> vk_swapchain;
 	std::vector<vk::Image> images;
 	std::vector<vk::raii::ImageView> image_views;
-	vk::Extent2D swapchain_size = {};
 };
 
 } //namespace vkw

@@ -28,7 +28,7 @@ public:
 			}
 		}
 
-		auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> bool {
+		auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> std::optional<uint32_t> {
 			const auto properties = physical_device.get().getQueueFamilyProperties();
 
 			// Enumerate available queue properties, and subtract the number of currently added
@@ -51,19 +51,19 @@ public:
 
 			// Try to find a queue with the exact combination of flags specified
 			const auto exact_idx = util::find_queue_family_index_strong(available_props, flags);
-			if (exact_idx.has_value() && (available_props[exact_idx.value()].queueCount >= count)) {
+			if (exact_idx.has_value() and (available_props[exact_idx.value()].queueCount >= count)) {
 				add_queues(exact_idx.value(), priority, count);
-				return true;
+				return exact_idx;
 			}
 
 			// If no queues with the exact flags were found, then add the first one which has a match.
 			const auto weak_idx = util::find_queue_family_index_weak(available_props, flags);
-			if (weak_idx.has_value() && (available_props[weak_idx.value()].queueCount >= count)) {
+			if (weak_idx.has_value() and (available_props[weak_idx.value()].queueCount >= count)) {
 				add_queues(weak_idx.value(), priority, count);
-				return true;
+				return weak_idx;
 			}
 
-			return false;
+			return {};
 		}
 
 		auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {

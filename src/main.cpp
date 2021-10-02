@@ -65,21 +65,28 @@ int main(int argc, char** argv) {
 	};
 
 	// Add a graphics queue
-	device_info.add_queues(vk::QueueFlagBits::eGraphics, 1.0f);
+	const auto graphics_queue = device_info.add_queues(vk::QueueFlagBits::eGraphics, 1.0f);
+	if (not graphics_queue.has_value()) {
+		throw std::runtime_error("No queues with graphics support");
+	}
 
 	// Add a queue which supports present
-	const auto has_present_queue = std::ranges::any_of(device_info.queue_family_info_list, [&](const auto& qfi) {
+	const auto present_queue_it = std::ranges::find_if(device_info.queue_family_info_list, [&](const auto& qfi) {
 		return physical_device.getSurfaceSupportKHR(qfi.family_idx, *window.get_surface()) && !qfi.queues.empty();
 	});
 
-	if (not has_present_queue) {
-		const auto present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
+	auto present_queue = std::optional<uint32_t>{};
+	if (present_queue_it == device_info.queue_family_info_list.end()) {
+		present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
 		if (present_queue.has_value()) {
 			device_info.add_queues(*present_queue, 1.0f);
 		}
 		else {
 			throw std::runtime_error("No queues with present support");
 		}
+	}
+	else {
+		present_queue = present_queue_it->family_idx;
 	}
 
 	auto logical_device = vkw::logical_device{device_info};
@@ -89,15 +96,20 @@ int main(int argc, char** argv) {
 		throw std::runtime_error("No SRGB surface format");
 	}
 
+	auto swap_queues = std::vector<uint32_t>{};
+	if (*graphics_queue != *present_queue) {
+		swap_queues = {*graphics_queue, *present_queue};
+	}
+
 	auto swapchain = vkw::swapchain{};
 	swapchain.create(
-		logical_device.get_vk_device(),
-		logical_device.get_vk_physical_device(),
+		logical_device,
 		window.get_surface(),
 		*srgb_format,
 		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
 		window.get_size(),
-		false
+		false,
+		swap_queues
 	);
 
 /*
