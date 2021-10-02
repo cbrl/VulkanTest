@@ -110,6 +110,11 @@ public:
 	}
 
 	[[nodiscard]]
+	auto get_format() -> vk::SurfaceFormatKHR {
+		return format;
+	}
+
+	[[nodiscard]]
 	auto get_vk_swapchain() -> vk::raii::SwapchainKHR& {
 		return *vk_swapchain;
 	}

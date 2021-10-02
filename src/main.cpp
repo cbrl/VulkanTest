@@ -90,18 +90,22 @@ int main(int argc, char** argv) {
 		present_queue = present_queue_it->family_idx;
 	}
 
+	// Create logical device
 	auto logical_device = vkw::logical_device{device_info};
 
+	// Find an SRGB surface format
 	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device.getSurfaceFormatsKHR(*window.get_surface()));
 	if (not srgb_format.has_value()) {
 		throw std::runtime_error("No SRGB surface format");
 	}
 
+	// Check if the graphics and present queues are the same
 	auto swap_queues = std::vector<uint32_t>{};
 	if (*graphics_queue != *present_queue) {
 		swap_queues = {*graphics_queue, *present_queue};
 	}
 
+	// Create the swapchain
 	auto swapchain = vkw::swapchain{};
 	swapchain.create(
 		logical_device,
@@ -113,6 +117,41 @@ int main(int argc, char** argv) {
 		swap_queues
 	);
 
+	// Create a render pass
+	auto render_pass = vkw::render_pass{logical_device};
+
+	render_pass.add(
+		vk::AttachmentDescription{
+			vk::AttachmentDescriptionFlags{},
+			swapchain.get_format().format,
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::ePresentSrcKHR
+		}
+	);
+	render_pass.add(
+		vk::AttachmentDescription{
+			vk::AttachmentDescriptionFlags{},
+			depth_buffer.get_format(),
+			vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::AttachmentLoadOp::eDontCare,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eDepthStencilAttachmentOptimal
+		}
+	);
+
+	auto image_views = std::vector<std::vector<vk::ImageView>>{};
+	image_views.resize(2);
+	std::ranges::transform(swapchain.get_image_views(), std::back_inserter(image_views[0]), &vk::raii::ImageView::operator*);
+
+	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
 /*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});
@@ -133,10 +172,6 @@ int main(int argc, char** argv) {
 	auto uniform_buffer = Buffer<glm::mat4>(*context.physical_device, *context.device, 1, vk::BufferUsageFlagBits::eUniformBuffer);
     const glm::mat4 mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(context.window.get().size);
 	uniform_buffer.upload(mvpc_matrix);
-
-	// Pipeline Layout
-    std::unique_ptr<vk::raii::DescriptorSetLayout> descriptor_set_layout = makeDescriptorSetLayout(*context.device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});
-    std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = makePipelineLayout(*context.device, *descriptor_set_layout);
 
 	// Render Pass
 	std::unique_ptr<vk::raii::RenderPass> renderPass = makeRenderPass(*context.device, swap_chain.color_format, depth_buffer.format);
@@ -169,6 +204,10 @@ int main(int argc, char** argv) {
     auto* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
     std::memcpy(pData, coloredCubeData, sizeof(coloredCubeData));
     deviceMemory->unmapMemory();
+
+	// Pipeline Layout
+	std::unique_ptr<vk::raii::DescriptorSetLayout> descriptor_set_layout = makeDescriptorSetLayout(*context.device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});
+	std::unique_ptr<vk::raii::PipelineLayout> pipelineLayout = makePipelineLayout(*context.device, *descriptor_set_layout);
 
 	// Descriptor Set
     std::unique_ptr<vk::raii::DescriptorPool> descriptorPool = makeDescriptorPool(*context.device, {{vk::DescriptorType::eUniformBuffer, 1}});

@@ -7,50 +7,29 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
+#include "logical_device.h"
+
 
 namespace vkw {
 
 // TODO: support subpasses
 class render_pass {
 public:
-	render_pass(
-		vk::raii::Device& device,
-		const std::vector<vk::AttachmentDescription>& attachment_descriptions,
-		const std::vector<std::vector<vk::raii::ImageView>>& target_attachments,
-		const vk::Rect2D& area_rect
-	) : area(area_rect) {
+	render_pass(const logical_device& device) : device(device) {
+	}
 
-		// Create the render pass
-		const auto create_info = vk::RenderPassCreateInfo{
-			vk::RenderPassCreateFlags{},
-			attachment_descriptions,
-			{},
-			{}
-		};
-		pass = std::make_unique<vk::raii::RenderPass>(device, create_info);
+	auto create(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+		create_render_pass();
+		create_framebuffers(target_attachments, area_rect);
+	}
 
-		// Create the framebuffers
-		framebuffers.reserve(target_attachments.size());
+	auto create(const std::vector<std::vector<vk::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+		create_render_pass();
+		create_framebuffers(target_attachments, area_rect);
+	}
 
-		for (const auto& attachment : target_attachments) {
-			auto vk_image_views = std::vector<vk::ImageView>(attachment.size());
-
-			std::ranges::copy(
-				std::views::transform(attachment, &vk::raii::ImageView::operator*),
-				std::back_inserter(vk_image_views)
-			);
-
-			const auto create_info = vk::FramebufferCreateInfo{
-				vk::FramebufferCreateFlags{},
-				**pass,
-				vk_image_views,
-				area.extent.width,
-				area.extent.height,
-				1
-			};
-
-			framebuffers.emplace_back(device, create_info);
-		}
+	auto add(const vk::AttachmentDescription& attachment) -> void {
+		attachment_descriptions.push_back(attachment);
 	}
 
 	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
@@ -72,8 +51,69 @@ public:
 
 private:
 
+	auto create_render_pass() -> void {
+		const auto create_info = vk::RenderPassCreateInfo{
+			vk::RenderPassCreateFlags{},
+			attachment_descriptions,
+			{},
+			{}
+		};
+
+		pass = std::make_unique<vk::raii::RenderPass>(device.get().get_vk_device(), create_info);
+	}
+
+	auto create_framebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+		assert(framebuffers.empty());
+
+		area = area_rect;
+		framebuffers.reserve(target_attachments.size());
+
+		for (const auto& attachment : target_attachments) {
+			auto vk_image_views = std::vector<vk::ImageView>{};
+			vk_image_views.reserve(attachment.size());
+
+			std::ranges::copy(
+				std::views::transform(attachment, &vk::raii::ImageView::operator*),
+				std::back_inserter(vk_image_views)
+			);
+
+			const auto create_info = vk::FramebufferCreateInfo{
+				vk::FramebufferCreateFlags{},
+				**pass,
+				vk_image_views,
+				area.extent.width,
+				area.extent.height,
+				1
+			};
+
+			framebuffers.emplace_back(device.get().get_vk_device(), create_info);
+		}
+	}
+
+	auto create_framebuffers(const std::vector<std::vector<vk::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
+		assert(framebuffers.empty());
+
+		area = area_rect;
+		framebuffers.reserve(target_attachments.size());
+
+		for (const auto& attachment : target_attachments) {
+			const auto create_info = vk::FramebufferCreateInfo{
+				vk::FramebufferCreateFlags{},
+				**pass,
+				attachment,
+				area.extent.width,
+				area.extent.height,
+				1
+			};
+
+			framebuffers.emplace_back(device.get().get_vk_device(), create_info);
+		}
+	}
+
+	std::reference_wrapper<const logical_device> device;
 	std::unique_ptr<vk::raii::RenderPass> pass;
 	std::vector<vk::raii::Framebuffer> framebuffers;
+	std::vector<vk::AttachmentDescription> attachment_descriptions;
 	std::vector<vk::ClearValue> clear_values;
 	vk::Rect2D area;
 };
