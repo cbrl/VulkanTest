@@ -25,6 +25,7 @@
 
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
+#include "vulkan_wrapper/descriptor.h"
 #include "vulkan_wrapper/render_pass.h"
 #include "vulkan_wrapper/swapchain.h"
 #include "vulkan_wrapper/window.h"
@@ -71,11 +72,12 @@ int main(int argc, char** argv) {
 		throw std::runtime_error("No queues with graphics support");
 	}
 
-	// Add a queue which supports present
+	// Check if any existing queues support present	
 	const auto present_queue_it = std::ranges::find_if(device_info.queue_family_info_list, [&](const auto& qfi) {
 		return physical_device.getSurfaceSupportKHR(qfi.family_idx, *window.get_surface()) && !qfi.queues.empty();
 	});
 
+	// Add a queue which supports present if none exist
 	auto present_queue = std::optional<uint32_t>{};
 	if (present_queue_it == device_info.queue_family_info_list.end()) {
 		present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());

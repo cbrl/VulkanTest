@@ -44,10 +44,12 @@ public:
 		clear_values = values;
 	}
 
+	[[nodiscard]]
 	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
 		return clear_values;
 	}
 
+	[[nodiscard]]
 	auto get_render_pass_begin_info(uint32_t frame) -> vk::RenderPassBeginInfo {
 		return vk::RenderPassBeginInfo{
 			**pass,
