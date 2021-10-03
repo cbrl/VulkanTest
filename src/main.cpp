@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
 	graphics_subpass.set_depth_stencil_attachment(vk::AttachmentReference{1, vk::ImageLayout::eDepthStencilAttachmentOptimal});
 	render_pass.add_subpass(graphics_subpass);
 
-	render_pass.add_attachment(
+	render_pass.add_attachment( //color attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			swapchain.get_format().format,
@@ -140,8 +140,7 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-
-	/*render_pass.add_attachment(
+	/*render_pass.add_attachment( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			depth_buffer.get_format().format,
