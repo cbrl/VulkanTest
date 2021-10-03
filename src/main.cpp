@@ -140,7 +140,8 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-	/*render_pass.add_attachment( //depth attachment
+	/*
+	render_pass.add_attachment( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			depth_buffer.get_format().format,
@@ -152,13 +153,15 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eDepthStencilAttachmentOptimal
 		}
-	);*/
+	);
 
-	auto image_views = std::vector<std::vector<vk::ImageView>>{};
-	image_views.resize(2);
-	std::ranges::transform(swapchain.get_image_views(), std::back_inserter(image_views[0]), &vk::raii::ImageView::operator*);
+	const auto image_views = std::vector<std::vector<vk::ImageView>>{
+		{*swapchain.get_image_views()[0], *depth_buffer.get_image_view()},
+		{*swapchain.get_image_views()[1], *depth_buffer.get_image_view()},
+	};
 
 	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
+	*/
 /*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});
