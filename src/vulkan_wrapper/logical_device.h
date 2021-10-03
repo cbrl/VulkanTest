@@ -51,14 +51,14 @@ public:
 
 			// Try to find a queue with the exact combination of flags specified
 			const auto exact_idx = util::find_queue_family_index_strong(available_props, flags);
-			if (exact_idx.has_value() and (available_props[exact_idx.value()].queueCount >= count)) {
+			if (exact_idx.has_value() and (available_props[*exact_idx].queueCount >= count)) {
 				add_queues(exact_idx.value(), priority, count);
 				return exact_idx;
 			}
 
 			// If no queues with the exact flags were found, then add the first one which has a match.
 			const auto weak_idx = util::find_queue_family_index_weak(available_props, flags);
-			if (weak_idx.has_value() and (available_props[weak_idx.value()].queueCount >= count)) {
+			if (weak_idx.has_value() and (available_props[*weak_idx].queueCount >= count)) {
 				add_queues(weak_idx.value(), priority, count);
 				return weak_idx;
 			}
