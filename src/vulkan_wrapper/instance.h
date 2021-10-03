@@ -55,7 +55,7 @@ public:
 		uint32_t engine_version_minor = 0;
 		uint32_t engine_vesrion_patch = 0;
 
-		uint32_t api_version = VK_API_VERSION_1_0;
+		uint32_t api_version = VK_API_VERSION_1_2;
 	};
 
 	struct instance_info {
@@ -68,24 +68,18 @@ public:
 		bool validation = false;
 	};
 
-	instance(const app_info& app_config, const instance_info& instance_config, const debug_info& debug_config)
-		: context(std::make_unique<vk::raii::Context>())
-		, app_config(app_config)
-		, instance_config(instance_config)
-		, debug_config(debug_config) {
+	instance(const app_info& app_cfg, const instance_info& instance_cfg, const debug_info& debug_cfg) :
+		app_config(app_cfg),
+		instance_config(instance_cfg),
+		debug_config(debug_cfg),
+		vk_instance(create_instance(vk_context, app_config, instance_config, debug_config)) {
 
 		// Enumerate layer and extension properties
-		layer_properties     = context->enumerateInstanceLayerProperties();
-		extension_properties = context->enumerateInstanceExtensionProperties();
-
-		// Validate the extensions/layers, and add requested debug extensions/layers.
-		validate_instance_info();
-
-		// Create the instance
-		create_instance();
+		layer_properties     = vk_context.enumerateInstanceLayerProperties();
+		extension_properties = vk_context.enumerateInstanceExtensionProperties();
 
 		// Enumerate physical devices
-		physical_devices = vk::raii::PhysicalDevices(*vk_instance);
+		physical_devices = vk::raii::PhysicalDevices{vk_instance};
 	}
 
 
@@ -106,12 +100,12 @@ public:
 
 	[[nodiscard]]
 	auto get_vk_instance() -> vk::raii::Instance& {
-		return *vk_instance;
+		return vk_instance;
 	}
 
 	[[nodiscard]]
 	auto get_vk_instance() const -> const vk::raii::Instance& {
-		return *vk_instance;
+		return vk_instance;
 	}
 
 	[[nodiscard]]
@@ -146,7 +140,10 @@ public:
 
 private:
 
-	auto validate_instance_info() -> void {
+	static auto process_config(const vk::raii::Context& context, const debug_info& debug_config, instance_info& instance_config) -> void {
+		const auto layer_properties     = context.enumerateInstanceLayerProperties();
+		const auto extension_properties = context.enumerateInstanceExtensionProperties();
+
 		// Add the debug utils layer if requested
 		if (debug_config.utils) {
 			const bool has_debug_utils = std::ranges::any_of(instance_config.extensions, [](const char* ext) {
@@ -176,54 +173,77 @@ private:
 				instance_config.layers.push_back("VK_LAYER_KHRONOS_validation");
 			}
 		}
+	}
+
+	static auto validate_instance_info(
+		const vk::raii::Context& context,
+		const app_info& app_config,
+		const instance_info& instance_config,
+		const debug_info& debug_config
+	) -> void {
+
+		const auto layer_properties = context.enumerateInstanceLayerProperties();
+		const auto extension_properties = context.enumerateInstanceExtensionProperties();
 
 		// Ensure all specified layers and extensions are available
 		debug::validate_layers(instance_config.layers, layer_properties);
 		debug::validate_extensions(instance_config.extensions, extension_properties);
 	}
 
-	auto create_instance() -> void {
+	static auto create_instance(
+		const vk::raii::Context& context,
+		const app_info& app_config,
+		instance_info& instance_config,
+		const debug_info& debug_config
+	) -> vk::raii::Instance {
+
+		// Add any layers/extensions required by the debug config
+		process_config(context, debug_config, instance_config);
+
+		// Validate the extensions/layers, and add requested debug extensions/layers.
+		validate_instance_info(context, app_config, instance_config, debug_config);
+
 		// Build app/engine versions
 		const auto app_version    = VK_MAKE_VERSION(app_config.app_version_major, app_config.app_version_minor, app_config.app_vesrion_patch);
 		const auto engine_version = VK_MAKE_VERSION(app_config.engine_version_major, app_config.engine_version_minor, app_config.engine_vesrion_patch);
 
-
 		// Application info struct
-		const auto application_info = vk::ApplicationInfo(
+		const auto application_info = vk::ApplicationInfo{
 			app_config.app_name.c_str(),
 			app_version,
 			app_config.engine_name.c_str(),
 			engine_version,
 			app_config.api_version
-		);
+		};
 
 		if (debug_config.utils) {
-			const auto severity_flags = vk::DebugUtilsMessageSeverityFlagsEXT(
-				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
-				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
-			);
+			const auto severity_flags =
+				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+				| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
 
-			const auto message_type_flags = vk::DebugUtilsMessageTypeFlagsEXT(
-				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral     |
-				vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
-				vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
-			);
+			const auto message_type_flags =
+				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
+				| vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+				| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
 			// Instance create info structure chain
-			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT>(
-				{{}, &application_info, instance_config.layers, instance_config.extensions},
-				{{}, severity_flags, message_type_flags, &debug::debug_utils_messenger_callback}
-			);
+			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT>{
+				{vk::InstanceCreateFlags{}, &application_info, instance_config.layers, instance_config.extensions},
+				{vk::DebugUtilsMessengerCreateFlagsEXT{}, severity_flags, message_type_flags, &debug::debug_utils_messenger_callback}
+			};
 
 			// Create the instance
-			vk_instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
+			return vk::raii::Instance{context, instance_create_info.get<vk::InstanceCreateInfo>()};
 		}
 		else {
-			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo>(
-				{{}, &application_info, instance_config.layers, instance_config.extensions}
-			);
+			const auto instance_create_info = vk::InstanceCreateInfo{
+				vk::InstanceCreateFlags{},
+				&application_info,
+				instance_config.layers,
+				instance_config.extensions
+			};
 			
-			vk_instance = std::make_unique<vk::raii::Instance>(*context, instance_create_info.get<vk::InstanceCreateInfo>());
+			return vk::raii::Instance{context, instance_create_info};
 		}
 	}
 
@@ -232,8 +252,8 @@ private:
 	instance_info instance_config;
 	debug_info debug_config;
 
-	std::unique_ptr<vk::raii::Context>  context;
-	std::unique_ptr<vk::raii::Instance> vk_instance;
+	vk::raii::Context  vk_context;
+	vk::raii::Instance vk_instance;
 
 	std::vector<vk::LayerProperties> layer_properties;
 	std::vector<vk::ExtensionProperties> extension_properties;
