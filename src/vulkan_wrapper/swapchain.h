@@ -13,17 +13,18 @@ namespace vkw {
 
 class swapchain {
 public:
+	swapchain(const logical_device& device, const vk::raii::SurfaceKHR& surface) :
+		device(device),
+		surface(surface) {
+	}
+
 	auto create(
-		const logical_device& device,
-		const vk::raii::SurfaceKHR& surface,
 		vk::SurfaceFormatKHR format,
 		vk::ImageUsageFlags usage,
 		vk::Extent2D size,
 		bool vsync,
 		std::vector<uint32_t> shared_queues = {}
 	) -> void {
-		this->device        = &device;
-		this->surface       = &surface;
 		this->format        = format;
 		this->usage         = usage;
 		this->size          = size;
@@ -33,8 +34,7 @@ public:
 	}
 
 	auto resize(const vk::raii::PhysicalDevice& physical_device, vk::Extent2D new_size) -> void {
-		assert(device);
-		device->get_vk_device().waitIdle();
+		device.get().get_vk_device().waitIdle();
 
 		size = new_size;
 		create_impl();
@@ -73,13 +73,11 @@ public:
 private:
 
 	auto create_impl() -> void {
-		assert(device && surface);
+		const auto& vk_device          = device.get().get_vk_device();
+		const auto& vk_physical_device = device.get().get_vk_physical_device();
 
-		const auto& vk_device          = device->get_vk_device();
-		const auto& vk_physical_device = device->get_vk_physical_device();
-
-		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(**surface);
-		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(**surface);
+		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(*surface.get());
+		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(*surface.get());
 
 		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_mdoes);
 		const auto swapchain_extent = select_swapchain_extent(surface_capabilities, size);
@@ -88,7 +86,7 @@ private:
 
 		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagsKHR{},
-			**surface,
+			*surface.get(),
 			surface_capabilities.minImageCount,
 			format.format,
 			format.colorSpace,
@@ -194,8 +192,8 @@ private:
 		}
 	}
 
-	const logical_device* device = nullptr;
-	const vk::raii::SurfaceKHR* surface = nullptr;
+	std::reference_wrapper<const logical_device> device;
+	std::reference_wrapper<const vk::raii::SurfaceKHR> surface;
 
 	vk::SurfaceFormatKHR format = {};
 	vk::ImageUsageFlags usage = {};

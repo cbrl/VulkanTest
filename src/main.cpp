@@ -108,10 +108,8 @@ int main(int argc, char** argv) {
 	}
 
 	// Create the swapchain
-	auto swapchain = vkw::swapchain{};
+	auto swapchain = vkw::swapchain{logical_device, window.get_surface()};
 	swapchain.create(
-		logical_device,
-		window.get_surface(),
 		*srgb_format,
 		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
 		window.get_size(),
@@ -162,6 +160,10 @@ int main(int argc, char** argv) {
 
 	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
 	*/
+
+
+
+
 /*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});

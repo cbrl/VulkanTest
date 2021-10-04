@@ -182,18 +182,8 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_physical_device() -> vk::raii::PhysicalDevice& {
-		return device_info.physical_device;
-	}
-
-	[[nodiscard]]
 	auto get_vk_physical_device() const -> const vk::raii::PhysicalDevice& {
 		return device_info.physical_device;
-	}
-
-	[[nodiscard]]
-	auto get_vk_device() -> vk::raii::Device& {
-		return *device;
 	}
 
 	[[nodiscard]]
@@ -202,17 +192,17 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) -> queue& {
+	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) const -> const queue& {
 		return get_queues(flag).at(queue_idx);
 	}
 
 	[[nodiscard]]
-	auto get_queues(vk::QueueFlags flag) -> const std::vector<std::reference_wrapper<queue>>& {
+	auto get_queues(vk::QueueFlags flag) const -> const std::vector<std::reference_wrapper<const queue>>& {
 		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)];
 	}
 
 	[[nodiscard]]
-	auto get_present_queue(const vk::raii::SurfaceKHR& surface) -> queue* {
+	auto get_present_queue(const vk::raii::SurfaceKHR& surface) const -> const queue* {
 		for (auto& queue : queues) {
 			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
 				return queue.get();
@@ -222,7 +212,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(const vk::raii::SurfaceKHR& surface) -> std::vector<std::reference_wrapper<queue>> {
+	auto get_present_queues(const vk::raii::SurfaceKHR& surface) const -> std::vector<std::reference_wrapper<queue>> {
 		auto results = std::vector<std::reference_wrapper<queue>>{};
 
 		for (auto& queue : queues) {
@@ -240,7 +230,7 @@ private:
 	std::unique_ptr<vk::raii::Device> device;
 
 	std::vector<std::unique_ptr<queue>> queues;
-	std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<queue>>> queue_map;
+	mutable std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<const queue>>> queue_map;
 };
 
 } //namespace vkw

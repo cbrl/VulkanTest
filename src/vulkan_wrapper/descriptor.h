@@ -22,11 +22,6 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_layout() noexcept -> vk::raii::DescriptorSetLayout& {
-		return layout;
-	}
-
-	[[nodiscard]]
 	auto get_vk_layout() const noexcept -> const vk::raii::DescriptorSetLayout& {
 		return layout;
 	}
@@ -67,11 +62,6 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_pool() noexcept -> vk::raii::DescriptorPool& {
-		return pool;
-	}
-
-	[[nodiscard]]
 	auto get_pool() const noexcept -> const vk::raii::DescriptorPool& {
 		return pool;
 	}
@@ -93,12 +83,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto allocate(const std::vector<descriptor_set_layout>& layouts) -> std::vector<vk::raii::DescriptorSet> {
+	auto allocate(const std::vector<std::reference_wrapper<const descriptor_set_layout>>& layouts) -> std::vector<vk::raii::DescriptorSet> {
 		auto vk_layouts = std::vector<vk::DescriptorSetLayout>{};
 		vk_layouts.reserve(layouts.size());
 
 		for (const auto& layout : layouts) {
-			vk_layouts.push_back(*layout.get_vk_layout());
+			vk_layouts.push_back(*layout.get().get_vk_layout());
 		}
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
