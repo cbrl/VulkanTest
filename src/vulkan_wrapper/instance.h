@@ -70,7 +70,7 @@ public:
 
 	instance(const app_info& app_cfg, const instance_info& instance_cfg, const debug_info& debug_cfg) :
 		app_config(app_cfg),
-		instance_config(instance_cfg),
+		instance_config(process_config(vk_context, instance_cfg, debug_cfg)),
 		debug_config(debug_cfg),
 		vk_instance(create_instance(vk_context, app_config, instance_config, debug_config)) {
 
@@ -140,7 +140,10 @@ public:
 
 private:
 
-	static auto process_config(const vk::raii::Context& context, const debug_info& debug_config, instance_info& instance_config) -> void {
+	// Add any layers/extensions required by the debug config
+	static auto process_config(const vk::raii::Context& context, const instance_info& instance_config, const debug_info& debug_config) -> instance_info {
+		auto output = instance_config;
+
 		const auto layer_properties     = context.enumerateInstanceLayerProperties();
 		const auto extension_properties = context.enumerateInstanceExtensionProperties();
 
@@ -155,7 +158,7 @@ private:
 			});
 
 			if (!has_debug_utils && debug_utils_exist) {
-				instance_config.extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+				output.extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			}
 		}
 
@@ -170,19 +173,15 @@ private:
 			});
 
 			if (!has_validation_layer && validation_layer_exists) {
-				instance_config.layers.push_back("VK_LAYER_KHRONOS_validation");
+				output.layers.push_back("VK_LAYER_KHRONOS_validation");
 			}
 		}
+
+		return output;
 	}
 
-	static auto validate_instance_info(
-		const vk::raii::Context& context,
-		const app_info& app_config,
-		const instance_info& instance_config,
-		const debug_info& debug_config
-	) -> void {
-
-		const auto layer_properties = context.enumerateInstanceLayerProperties();
+	static auto validate_instance_info(const vk::raii::Context& context, const instance_info& instance_config) -> void {
+		const auto layer_properties     = context.enumerateInstanceLayerProperties();
 		const auto extension_properties = context.enumerateInstanceExtensionProperties();
 
 		// Ensure all specified layers and extensions are available
@@ -193,15 +192,12 @@ private:
 	static auto create_instance(
 		const vk::raii::Context& context,
 		const app_info& app_config,
-		instance_info& instance_config,
+		const instance_info& instance_config,
 		const debug_info& debug_config
 	) -> vk::raii::Instance {
 
-		// Add any layers/extensions required by the debug config
-		process_config(context, debug_config, instance_config);
-
 		// Validate the extensions/layers, and add requested debug extensions/layers.
-		validate_instance_info(context, app_config, instance_config, debug_config);
+		validate_instance_info(context, instance_config);
 
 		// Build app/engine versions
 		const auto app_version    = VK_MAKE_VERSION(app_config.app_version_major, app_config.app_version_minor, app_config.app_vesrion_patch);
@@ -248,14 +244,19 @@ private:
 	}
 
 
-	app_info app_config;
-	instance_info instance_config;
-	debug_info debug_config;
-
+	// Vulkan function dispatcher
 	vk::raii::Context  vk_context;
+
+	// Configuration structs
+	app_info      app_config;
+	instance_info instance_config;
+	debug_info    debug_config;
+
+	// The Vulkan instance handle
 	vk::raii::Instance vk_instance;
 
-	std::vector<vk::LayerProperties> layer_properties;
+	// Layer & extension properties
+	std::vector<vk::LayerProperties>     layer_properties;
 	std::vector<vk::ExtensionProperties> extension_properties;
 
 	std::vector<vk::raii::PhysicalDevice> physical_devices;

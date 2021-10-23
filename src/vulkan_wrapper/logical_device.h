@@ -3,6 +3,7 @@
 #include <bit>
 #include <memory>
 #include <functional>
+#include <optional>
 #include <ranges>
 #include <vector>
 

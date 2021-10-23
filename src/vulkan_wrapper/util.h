@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bit>
+#include <optional>
 #include <ranges>
 #include <vector>
 
