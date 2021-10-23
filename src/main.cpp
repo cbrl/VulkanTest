@@ -42,6 +42,8 @@ int main(int argc, char** argv) {
 	glfwInit();
 
 
+	// Instance
+	//--------------------------------------------------------------------------------
 	const auto app_info = vkw::instance::app_info{};
 
 	auto instance_info = vkw::instance::instance_info{
@@ -58,8 +60,14 @@ int main(int argc, char** argv) {
 	auto instance = vkw::instance{app_info, instance_info, debug_info};
 	auto& physical_device = instance.get_physical_device(0);
 
+
+	// Window
+	//--------------------------------------------------------------------------------
 	auto window = vkw::window{instance.get_vk_instance(), "My Window", {1280, 1024}};
 
+
+	// Logical Device
+	//--------------------------------------------------------------------------------
 	auto device_info = vkw::logical_device::logical_device_info{
 		.physical_device = physical_device,
 		.features = {},
@@ -95,6 +103,10 @@ int main(int argc, char** argv) {
 	// Create logical device
 	auto logical_device = vkw::logical_device{device_info};
 
+
+	// Swap Chain
+	//--------------------------------------------------------------------------------
+
 	// Find an SRGB surface format
 	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device.getSurfaceFormatsKHR(*window.get_surface()));
 	if (not srgb_format.has_value()) {
@@ -116,6 +128,10 @@ int main(int argc, char** argv) {
 		false,
 		swap_queues
 	);
+
+
+	// Render Pass
+	//--------------------------------------------------------------------------------
 
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device};
