@@ -35,7 +35,7 @@ public:
 		create_impl();
 	}
 
-	auto resize(const vk::raii::PhysicalDevice& physical_device, vk::Extent2D new_size) -> void {
+	auto resize(vk::Extent2D new_size) -> void {
 		device.get().get_vk_device().waitIdle();
 
 		size = new_size;
@@ -63,12 +63,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_images() const -> const std::vector<vk::Image>& {
+	auto get_images() const noexcept -> std::span<const vk::Image> {
 		return images;
 	}
 
 	[[nodiscard]]
-	auto get_image_views() const -> const std::vector<vk::raii::ImageView>& {
+	auto get_image_views() const noexcept -> std::span<const vk::raii::ImageView> {
 		return image_views;
 	}
 
@@ -126,7 +126,7 @@ private:
 		for (const auto& image : images) {
 			const auto image_view_create_info = vk::ImageViewCreateInfo{
 				vk::ImageViewCreateFlags{},
-				static_cast<vk::Image>(image),
+				image,
 				vk::ImageViewType::e2D,
 				format.format,
 				component_mapping,

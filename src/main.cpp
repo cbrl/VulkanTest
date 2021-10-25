@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
 	// Add a queue which supports present if none exist
 	auto present_queue = std::optional<uint32_t>{};
 	if (present_queue_it == device_info.queue_family_info_list.end()) {
-		present_queue = vkw::util::find_present_queue_index(physical_device, window.get_surface());
+		present_queue = vkw::util::find_present_queue_index(*physical_device, *window.get_surface());
 		if (present_queue.has_value()) {
 			device_info.add_queues(*present_queue, 1.0f);
 		}

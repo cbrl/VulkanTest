@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -14,11 +15,11 @@ class descriptor_set_layout {
 public:
 	descriptor_set_layout(
 		const logical_device& device,
-		const std::vector<vk::DescriptorSetLayoutBinding>& layout_bindings,
+		std::span<vk::DescriptorSetLayoutBinding> layout_bindings,
 		vk::DescriptorSetLayoutCreateFlags flags = {}
 	) :
 		layout(create_layout(device, layout_bindings, flags)),
-		bindings(layout_bindings) {
+		bindings(layout_bindings.begin(), layout_bindings.end()) {
 	}
 
 	[[nodiscard]]
@@ -27,14 +28,14 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_bindings() const noexcept -> const std::vector<vk::DescriptorSetLayoutBinding>& {
+	auto get_bindings() const noexcept -> std::span<const vk::DescriptorSetLayoutBinding> {
 		return bindings;
 	}
 
 private:
 	static auto create_layout(
 		const logical_device& device,
-		const std::vector<vk::DescriptorSetLayoutBinding>& bindings,
+		std::span<vk::DescriptorSetLayoutBinding> bindings,
 		vk::DescriptorSetLayoutCreateFlags flags = {}
 	) -> vk::raii::DescriptorSetLayout {
 
@@ -51,13 +52,13 @@ class descriptor_pool {
 public:
 	descriptor_pool(
 		const logical_device& device,
-		const std::vector<vk::DescriptorPoolSize>& pool_sizes,
+		std::span<vk::DescriptorPoolSize> pool_sizes,
 		uint32_t max_sets,
 		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
 	) :
 		device(device),
 		pool(make_descriptor_pool(device, pool_sizes, max_sets, flags)),
-		sizes(pool_sizes),
+		sizes(pool_sizes.begin(), pool_sizes.end()),
 		max(max_sets) {
 	}
 
@@ -67,7 +68,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_sizes() const noexcept -> const std::vector<vk::DescriptorPoolSize>& {
+	auto get_sizes() const noexcept -> std::span<const vk::DescriptorPoolSize> {
 		return sizes;
 	}
 
@@ -99,7 +100,7 @@ private:
 
 	static auto make_descriptor_pool(
 		const logical_device& device,
-		const std::vector<vk::DescriptorPoolSize>& pool_sizes,
+		std::span<vk::DescriptorPoolSize> pool_sizes,
 		uint32_t max_sets,
 		vk::DescriptorPoolCreateFlags flags
 	) -> vk::raii::DescriptorPool {

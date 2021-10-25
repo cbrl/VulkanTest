@@ -10,6 +10,28 @@
 
 namespace vkw::util {
 
+/// Converts a range to a vector
+template <std::ranges::range R>
+[[nodiscard]]
+constexpr auto to_vector(R&& r) -> std::vector<std::ranges::range_value_t<R>> {
+	auto result = std::vector<std::ranges::range_value_t<R>>{};
+
+	// Reserve space if possible
+	if constexpr (std::ranges::sized_range<R>) {
+		result.reserve(std::ranges::size(r));
+	}
+
+	std::ranges::copy(r, std::back_inserter(result));
+
+	return result;
+}
+
+/// Constructs a transform_view that views a range of vk::raii::X objects as their vk::X handle
+inline constexpr auto as_handles = []<std::ranges::input_range V> (V&& v) {
+	return std::views::transform(v, &std::ranges::range_value_t<V>::operator*);
+};
+
+
 [[nodiscard]]
 inline auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
 	return std::ranges::any_of(extension_properties, [&](const auto& prop) {

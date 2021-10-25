@@ -5,6 +5,8 @@
 #include <functional>
 #include <optional>
 #include <ranges>
+#include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -33,7 +35,7 @@ public:
 			const auto properties = physical_device.get().getQueueFamilyProperties();
 
 			// Enumerate available queue properties, and subtract the number of currently added
-			// queues from their queueCounts.
+			// queues from their queue counts.
 			auto available_props = decltype(properties){};
 			available_props.reserve(properties.size());
 
@@ -194,18 +196,18 @@ public:
 
 	[[nodiscard]]
 	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) const -> const queue& {
-		return get_queues(flag).at(queue_idx);
+		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)].at(queue_idx);
 	}
 
 	[[nodiscard]]
-	auto get_queues(vk::QueueFlags flag) const -> const std::vector<std::reference_wrapper<const queue>>& {
+	auto get_queues(vk::QueueFlags flag) const -> std::span<std::reference_wrapper<const queue>> {
 		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)];
 	}
 
 	[[nodiscard]]
-	auto get_present_queue(const vk::raii::SurfaceKHR& surface) const -> const queue* {
+	auto get_present_queue(const vk::SurfaceKHR& surface) const -> const queue* {
 		for (auto& queue : queues) {
-			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
+			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, surface)) {
 				return queue.get();
 			}
 		}
@@ -213,11 +215,11 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(const vk::raii::SurfaceKHR& surface) const -> std::vector<std::reference_wrapper<queue>> {
+	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::span<std::reference_wrapper<queue>> {
 		auto results = std::vector<std::reference_wrapper<queue>>{};
 
 		for (auto& queue : queues) {
-			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, *surface)) {
+			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, surface)) {
 				results.push_back(std::ref(*queue));
 			}
 		}

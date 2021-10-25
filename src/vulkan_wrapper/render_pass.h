@@ -9,6 +9,7 @@
 
 #include "logical_device.h"
 #include "subpass.h"
+#include "vulkan_wrapper/util.h"
 
 
 namespace vkw {
@@ -45,7 +46,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
+	auto get_clear_values() const noexcept -> const std::span<const vk::ClearValue> {
 		return clear_values;
 	}
 
@@ -62,8 +63,7 @@ public:
 private:
 
 	auto create_render_pass() -> void {
-		auto desc_view = std::views::transform(subpasses, &subpass::get_description);
-		const auto subpass_descriptions = std::vector<vk::SubpassDescription>{desc_view.begin(), desc_view.end()};
+		const auto subpass_descriptions = vkw::util::to_vector(std::views::transform(subpasses, &subpass::get_description));
 
 		const auto create_info = vk::RenderPassCreateInfo{
 			vk::RenderPassCreateFlags{},
@@ -76,31 +76,10 @@ private:
 	}
 
 	auto create_framebuffers(const std::vector<std::vector<vk::raii::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {
-		assert(framebuffers.empty());
+		const auto handle_vec_view = std::views::transform(target_attachments, [](auto&& v) { return vkw::util::to_vector(vkw::util::as_handles(v)); });
+		const auto vk_image_views  = vkw::util::to_vector(handle_vec_view);
 
-		area = area_rect;
-		framebuffers.reserve(target_attachments.size());
-
-		for (const auto& attachment : target_attachments) {
-			auto vk_image_views = std::vector<vk::ImageView>{};
-			vk_image_views.reserve(attachment.size());
-
-			std::ranges::copy(
-				std::views::transform(attachment, &vk::raii::ImageView::operator*),
-				std::back_inserter(vk_image_views)
-			);
-
-			const auto create_info = vk::FramebufferCreateInfo{
-				vk::FramebufferCreateFlags{},
-				**pass,
-				vk_image_views,
-				area.extent.width,
-				area.extent.height,
-				1
-			};
-
-			framebuffers.emplace_back(device.get().get_vk_device(), create_info);
-		}
+		create_framebuffers(vk_image_views, area_rect);
 	}
 
 	auto create_framebuffers(const std::vector<std::vector<vk::ImageView>>& target_attachments, const vk::Rect2D& area_rect) -> void {

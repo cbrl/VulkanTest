@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <ranges>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -129,12 +130,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_physical_devices() noexcept -> std::vector<vk::raii::PhysicalDevice>& {
+	auto get_physical_devices() noexcept -> std::span<vk::raii::PhysicalDevice> {
 		return physical_devices;
 	}
 
 	[[nodiscard]]
-	auto get_physical_devices() const noexcept -> const std::vector<vk::raii::PhysicalDevice>& {
+	auto get_physical_devices() const noexcept -> std::span<const vk::raii::PhysicalDevice> {
 		return physical_devices;
 	}
 
