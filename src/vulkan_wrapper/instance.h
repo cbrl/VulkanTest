@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <ranges>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -130,18 +129,14 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_physical_devices() noexcept -> std::span<vk::raii::PhysicalDevice> {
-		return physical_devices;
-	}
-
-	[[nodiscard]]
-	auto get_physical_devices() const noexcept -> std::span<const vk::raii::PhysicalDevice> {
+	auto get_physical_devices() const noexcept -> const std::vector<vk::raii::PhysicalDevice>& {
 		return physical_devices;
 	}
 
 private:
 
 	// Add any layers/extensions required by the debug config
+	[[nodiscard]]
 	static auto process_config(const vk::raii::Context& context, const instance_info& instance_config, const debug_info& debug_config) -> instance_info {
 		auto output = instance_config;
 
@@ -190,6 +185,7 @@ private:
 		debug::validate_extensions(instance_config.extensions, extension_properties);
 	}
 
+	[[nodiscard]]
 	static auto create_instance(
 		const vk::raii::Context& context,
 		const app_info& app_config,

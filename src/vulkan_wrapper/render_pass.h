@@ -34,7 +34,7 @@ public:
 	}
 
 	auto add_subpass(const subpass& pass) -> void {
-		subpasses.push_back(pass);
+		subpasses.push_back(std::ref(pass));
 	}
 
 	auto add_subpass_dependency(const vk::SubpassDependency& dependency) -> void {
@@ -46,7 +46,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_clear_values() const noexcept -> const std::span<const vk::ClearValue> {
+	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
 		return clear_values;
 	}
 

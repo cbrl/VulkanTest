@@ -28,7 +28,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_bindings() const noexcept -> std::span<const vk::DescriptorSetLayoutBinding> {
+	auto get_bindings() const noexcept -> const std::vector<vk::DescriptorSetLayoutBinding>& {
 		return bindings;
 	}
 
@@ -68,7 +68,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_sizes() const noexcept -> std::span<const vk::DescriptorPoolSize> {
+	auto get_sizes() const noexcept -> const std::vector<vk::DescriptorPoolSize>& {
 		return sizes;
 	}
 
@@ -84,13 +84,8 @@ public:
 	}
 
 	[[nodiscard]]
-	auto allocate(const std::vector<std::reference_wrapper<const descriptor_set_layout>>& layouts) -> std::vector<vk::raii::DescriptorSet> {
-		auto vk_layouts = std::vector<vk::DescriptorSetLayout>{};
-		vk_layouts.reserve(layouts.size());
-
-		for (const auto& layout : layouts) {
-			vk_layouts.push_back(*layout.get().get_vk_layout());
-		}
+	auto allocate(std::span<const descriptor_set_layout> layouts) -> std::vector<vk::raii::DescriptorSet> {
+		const auto vk_layouts = vkw::util::to_vector(vkw::util::as_handles(std::views::transform(layouts, &descriptor_set_layout::get_vk_layout)));
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
 		return vk::raii::DescriptorSets{device.get().get_vk_device(), allocate_info};

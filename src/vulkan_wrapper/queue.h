@@ -138,7 +138,7 @@ inline auto find_present_queue_indices(vk::PhysicalDevice physical_device, const
 
 
 namespace debug {
-inline auto validate_queues(std::span<queue_family_info> queue_family_info_list, const std::vector<vk::QueueFamilyProperties>& queue_family_properties) -> void {
+inline auto validate_queues(std::span<const queue_family_info> queue_family_info_list, const std::vector<vk::QueueFamilyProperties>& queue_family_properties) -> void {
 	if (queue_family_properties.empty()) {
 		std::cout << "No queue family properties" << std::endl;
 		throw std::runtime_error("No queue family properties");

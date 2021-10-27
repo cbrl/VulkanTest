@@ -63,12 +63,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_images() const noexcept -> std::span<const vk::Image> {
+	auto get_images() const noexcept -> const std::vector<vk::Image>& {
 		return images;
 	}
 
 	[[nodiscard]]
-	auto get_image_views() const noexcept -> std::span<const vk::raii::ImageView> {
+	auto get_image_views() const noexcept -> const std::vector<vk::raii::ImageView>& {
 		return image_views;
 	}
 

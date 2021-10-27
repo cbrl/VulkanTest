@@ -5,7 +5,6 @@
 #include <functional>
 #include <optional>
 #include <ranges>
-#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -200,7 +199,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_queues(vk::QueueFlags flag) const -> std::span<std::reference_wrapper<const queue>> {
+	auto get_queues(vk::QueueFlags flag) const -> const std::vector<std::reference_wrapper<const queue>>& {
 		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)];
 	}
 
@@ -215,8 +214,8 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::span<std::reference_wrapper<queue>> {
-		auto results = std::vector<std::reference_wrapper<queue>>{};
+	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::vector<std::reference_wrapper<const queue>> {
+		auto results = std::vector<std::reference_wrapper<const queue>>{};
 
 		for (auto& queue : queues) {
 			if (device_info.physical_device.get().getSurfaceSupportKHR(queue->family_index, surface)) {

@@ -33,19 +33,19 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_descriptors() const noexcept -> std::span<std::reference_wrapper<const descriptor_set_layout>> {
+	auto get_descriptors() const noexcept -> std::span<const descriptor_set_layout> {
 		return descriptor_layouts;
 	}
 
 	[[nodiscard]]
-	auto get_push_constant_ranges() const noexcept -> std::span<const vk::PushConstantRange> {
+	auto get_push_constant_ranges() const noexcept -> const std::vector<vk::PushConstantRange>& {
 		return push_constant_ranges;
 	}
 
 	auto bind_descriptor_sets(
 		vk::raii::CommandBuffer& cmd_buffer,
 		vk::PipelineBindPoint bind_point,
-		const vk::DescriptorSet& descriptor_set,
+		vk::DescriptorSet descriptor_set,
 		uint32_t first_set,
 		const std::vector<uint32_t>& offsets
 	) -> void {
@@ -100,7 +100,7 @@ private:
 	}
 
 	vk::raii::PipelineLayout layout;
-	std::vector<std::reference_wrapper<const descriptor_set_layout>> descriptor_layouts;
+	std::span<const descriptor_set_layout> descriptor_layouts;
 	std::vector<vk::PushConstantRange> push_constant_ranges;
 };
 
