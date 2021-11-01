@@ -15,7 +15,7 @@ class descriptor_set_layout {
 public:
 	descriptor_set_layout(
 		const logical_device& device,
-		std::span<vk::DescriptorSetLayoutBinding> layout_bindings,
+		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings,
 		vk::DescriptorSetLayoutCreateFlags flags = {}
 	) :
 		layout(create_layout(device, layout_bindings, flags)),
@@ -35,7 +35,7 @@ public:
 private:
 	static auto create_layout(
 		const logical_device& device,
-		std::span<vk::DescriptorSetLayoutBinding> bindings,
+		std::span<const vk::DescriptorSetLayoutBinding> bindings,
 		vk::DescriptorSetLayoutCreateFlags flags = {}
 	) -> vk::raii::DescriptorSetLayout {
 
@@ -52,7 +52,7 @@ class descriptor_pool {
 public:
 	descriptor_pool(
 		const logical_device& device,
-		std::span<vk::DescriptorPoolSize> pool_sizes,
+		std::span<const vk::DescriptorPoolSize> pool_sizes,
 		uint32_t max_sets,
 		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
 	) :
@@ -95,7 +95,7 @@ private:
 
 	static auto make_descriptor_pool(
 		const logical_device& device,
-		std::span<vk::DescriptorPoolSize> pool_sizes,
+		std::span<const vk::DescriptorPoolSize> pool_sizes,
 		uint32_t max_sets,
 		vk::DescriptorPoolCreateFlags flags
 	) -> vk::raii::DescriptorPool {

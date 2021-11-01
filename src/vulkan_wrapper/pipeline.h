@@ -20,7 +20,7 @@ public:
 	pipeline_layout(
 		const logical_device& device,
 		std::span<const descriptor_set_layout> layouts,
-		std::span<vk::PushConstantRange> ranges
+		std::span<const vk::PushConstantRange> ranges
 	) :
 		layout(make_layout(device, layouts, ranges)),
 		descriptor_layouts(layouts.begin(), layouts.end()),
