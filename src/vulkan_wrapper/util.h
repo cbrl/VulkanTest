@@ -27,7 +27,9 @@ constexpr auto to_vector(R&& r) -> std::vector<std::ranges::range_value_t<R>> {
 }
 
 /// Constructs a transform_view that views a range of vk::raii::X objects as their vk::X handle
-inline constexpr auto as_handles = []<std::ranges::input_range V> (V&& v) {
+template<std::ranges::input_range V>
+[[nodiscard]]
+auto as_handles(V&& v) {
 	return std::views::transform(v, &std::ranges::range_value_t<V>::operator*);
 };
 
