@@ -226,6 +226,15 @@ public:
 		return results;
 	}
 
+	[[nodiscard]]
+	auto create_device_memory(const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags property_flags) const -> vk::raii::DeviceMemory {
+		const auto memory_properties    = get_vk_physical_device().getMemoryProperties();
+		const auto memory_type_index    = util::find_memory_type(memory_properties, memory_requirements.memoryTypeBits, property_flags);
+		const auto memory_allocate_info = vk::MemoryAllocateInfo{memory_requirements.size, memory_type_index};
+
+		return vk::raii::DeviceMemory{get_vk_device(), memory_allocate_info};
+	}
+
 private:
 
 	logical_device_info device_info;

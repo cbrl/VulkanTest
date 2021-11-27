@@ -23,9 +23,10 @@
 #include <thread>
 #include <vector>
 
+#include "vulkan_wrapper/descriptor.h"
+#include "vulkan_wrapper/image.h"
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
-#include "vulkan_wrapper/descriptor.h"
 #include "vulkan_wrapper/render_pass.h"
 #include "vulkan_wrapper/swapchain.h"
 #include "vulkan_wrapper/window.h"
@@ -130,6 +131,11 @@ int main(int argc, char** argv) {
 	);
 
 
+	// Depth Buffer
+	//--------------------------------------------------------------------------------
+	auto depth_buffer = create_depth_buffer(logical_device, vk::Format::eD16Unorm, window.get_size());
+
+
 	// Render Pass
 	//--------------------------------------------------------------------------------
 
@@ -154,11 +160,10 @@ int main(int argc, char** argv) {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-	/*
 	render_pass.add_attachment( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
-			depth_buffer.get_format().format,
+			depth_buffer.get_format(),
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eDontCare,
@@ -170,12 +175,11 @@ int main(int argc, char** argv) {
 	);
 
 	const auto image_views = std::vector<std::vector<vk::ImageView>>{
-		{*swapchain.get_image_views()[0], *depth_buffer.get_image_view()},
-		{*swapchain.get_image_views()[1], *depth_buffer.get_image_view()},
+		{*swapchain.get_image_views()[0], *depth_buffer.get_vk_image_view()},
+		{*swapchain.get_image_views()[1], *depth_buffer.get_vk_image_view()},
 	};
 
 	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
-	*/
 
 
 
