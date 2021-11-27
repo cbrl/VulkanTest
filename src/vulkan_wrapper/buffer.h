@@ -31,6 +31,11 @@ public:
 		vk_buffer.bindMemory(*device_memory, 0);
 	}
 
+	[[nodiscard]]
+	auto get_vk_buffer() const noexcept -> const vk::raii::Buffer& {
+		return vk_buffer;
+	}
+
 	auto upload(const T& data) const -> void {
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
@@ -38,19 +43,6 @@ public:
 		void* mapped = device_memory.mapMemory(0, sizeof(T));
 		std::memcpy(mapped, &data, sizeof(T));
 		device_memory.unmapMemory();
-	}
-
-	template<size_t N>
-	auto upload(const T (&data)[N]) const -> void {
-		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
-		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
-		assert(N <= count);
-
-		const size_t data_size = N * sizeof(T);
-		
-		void* mapped = device_memory.mapMemory(0, data_size);
-		std::memcpy(mapped, data, data_size);
-        device_memory.unmapMemory();
 	}
 
 	auto upload(std::span<const T> data) const -> void {

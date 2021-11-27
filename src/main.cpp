@@ -23,6 +23,7 @@
 #include <thread>
 #include <vector>
 
+#include "vulkan_wrapper/buffer.h"
 #include "vulkan_wrapper/descriptor.h"
 #include "vulkan_wrapper/image.h"
 #include "vulkan_wrapper/instance.h"
@@ -182,7 +183,30 @@ int main(int argc, char** argv) {
 	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
 
 
+	// Vertex Buffer
+	//--------------------------------------------------------------------------------
+	auto vertex_buffer = vkw::buffer<VertexPC>{logical_device, std::size(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer};
+	vertex_buffer.upload(coloredCubeData);
 
+	// Allocate memory for the vertex buffer
+	const auto memory_requirements = vertex_buffer.get_vk_buffer().getMemoryRequirements();
+
+	auto vertex_buffer_memory = logical_device.create_device_memory(
+		memory_requirements,
+		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+	);
+
+	// Copy data into vertex buffer
+    auto* data = static_cast<uint8_t*>(vertex_buffer_memory.mapMemory(0, memory_requirements.size));
+    std::memcpy(data, coloredCubeData, sizeof(coloredCubeData));
+    vertex_buffer_memory.unmapMemory();
+
+
+	// Model Uniform Buffer
+	//--------------------------------------------------------------------------------
+	auto uniform_buffer = vkw::buffer<glm::mat4>{logical_device, 1, vk::BufferUsageFlagBits::eUniformBuffer};
+    const auto mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(window.get_size());
+	uniform_buffer.upload(mvpc_matrix);
 
 /*
 	// Window
