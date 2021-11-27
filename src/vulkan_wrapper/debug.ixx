@@ -1,12 +1,14 @@
-#pragma once
+module;
 
 #include <iostream>
 #include <ranges>
 
 #include <vulkan/vulkan.hpp>
 
+export module vkw.debug;
 
-namespace vkw::debug {
+
+export namespace vkw::debug {
 
 inline VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
@@ -14,6 +16,8 @@ inline VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 	const VkDebugUtilsMessengerCallbackDataEXT*  pCallbackData,
 	void*                                        pUserData
 ) -> VkBool32 {
+	(void)pUserData;
+
 #if !defined(NDEBUG)
 	if (pCallbackData->messageIdNumber == 648835635) {
 		// UNASSIGNED-khronos-Validation-debug-build-warning-message

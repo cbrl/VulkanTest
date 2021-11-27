@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(VulkanTest)
 
+set(CMAKE_CXX_SYSROOT_FLAG_CODE "list(APPEND CMAKE_CXX_SOURCE_FILE_EXTENSIONS ixx)")
+
 # Find required packages
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -26,6 +28,19 @@ add_executable(${PROJECT_NAME}
 	src/utils/utils.cpp
 	src/utils/shaders.cpp
 	src/utils/math.cpp
+	src/vulkan_wrapper/buffer.ixx
+	src/vulkan_wrapper/debug.ixx
+	src/vulkan_wrapper/descriptor.ixx
+	src/vulkan_wrapper/image.ixx
+	src/vulkan_wrapper/instance.ixx
+	src/vulkan_wrapper/logical_device.ixx
+	src/vulkan_wrapper/pipeline.ixx
+	src/vulkan_wrapper/queue.ixx
+	src/vulkan_wrapper/render_pass.ixx
+	src/vulkan_wrapper/subpass.ixx
+	src/vulkan_wrapper/swapchain.ixx
+	src/vulkan_wrapper/util.ixx
+	src/vulkan_wrapper/window.ixx
 	#src/glslang/StandAlone/ResourceLimits.cpp
 )
 
@@ -51,4 +66,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 	glslang
 	glslang-default-resource-limits
 	#$ENV{VULKAN_SDK}/Lib
+)
+
+target_compile_options(${PROJECT_NAME} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /permissive- /MP /experimental:module>
 )

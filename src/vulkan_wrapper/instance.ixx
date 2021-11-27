@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <algorithm>
 #include <cstdint>
@@ -8,10 +8,12 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "debug.h"
+export module vkw.instance;
+
+import vkw.debug;
 
 
-namespace vkw {
+export namespace vkw {
 
 namespace util {
 auto get_surface_extensions() -> std::vector<const char*> {

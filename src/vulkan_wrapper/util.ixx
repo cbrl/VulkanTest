@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <bit>
 #include <optional>
@@ -7,8 +7,10 @@
 
 #include <vulkan/vulkan.hpp>
 
+export module vkw.util;
 
-namespace vkw::util {
+
+export namespace vkw::util {
 
 /// Converts a range to a vector
 template <std::ranges::range R>

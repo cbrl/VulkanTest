@@ -1,6 +1,7 @@
-#pragma once
+module;
 
 #include <array>
+#include <cstdint>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -8,12 +9,14 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
-#include "descriptor.h"
-#include "vulkan/vulkan_enums.hpp"
+export module vkw.pipeline;
+
+import vkw.descriptor;
+import vkw.logical_device;
+import vkw.util;
 
 
-namespace vkw {
+export namespace vkw {
 
 class pipeline_layout {
 public:

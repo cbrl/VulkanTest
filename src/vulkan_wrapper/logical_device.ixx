@@ -1,21 +1,25 @@
-#pragma once
+module;
 
 #include <bit>
-#include <memory>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "debug.h"
-#include "queue.h"
-#include "util.h"
+export module vkw.logical_device;
+
+import vkw.debug;
+import vkw.queue;
+import vkw.util;
 
 
-namespace vkw {
+export namespace vkw {
 
 class logical_device {
 public:
@@ -71,7 +75,7 @@ public:
 		auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
 			for (auto& family_info : queue_family_info_list) {
 				if (family_info.family_idx == family_idx) {
-					for (auto i : std::views::iota(uint32_t{0}, count)) {
+					for (uint32_t i = 0; i < count; ++i) {
 						family_info.queues.emplace_back(priority);
 					}
 					return;
@@ -82,7 +86,7 @@ public:
 			const auto properties = physical_device.get().getQueueFamilyProperties();
 			auto& family_info = queue_family_info_list.emplace_back(family_idx, properties[family_idx].queueFlags);
 
-			for (auto i : std::views::iota(uint32_t{0}, count)) {
+			for (uint32_t i = 0; i < count; ++i) {
 				family_info.queues.emplace_back(priority);
 			}
 		}

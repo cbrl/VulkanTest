@@ -23,15 +23,16 @@
 #include <thread>
 #include <vector>
 
-#include "vulkan_wrapper/buffer.h"
-#include "vulkan_wrapper/descriptor.h"
-#include "vulkan_wrapper/image.h"
-#include "vulkan_wrapper/instance.h"
-#include "vulkan_wrapper/logical_device.h"
-#include "vulkan_wrapper/pipeline.h"
-#include "vulkan_wrapper/render_pass.h"
-#include "vulkan_wrapper/swapchain.h"
-#include "vulkan_wrapper/window.h"
+import vkw.buffer;
+import vkw.descriptor;
+import vkw.image;
+import vkw.instance;
+import vkw.logical_device;
+import vkw.pipeline;
+import vkw.render_pass;
+import vkw.swapchain;
+import vkw.util;
+import vkw.window;
 
 /*
 static const std::string AppName = "VulkanTest";

@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <functional>
 #include <iterator>
@@ -7,12 +7,14 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
-#include "subpass.h"
-#include "vulkan_wrapper/util.h"
+export module vkw.render_pass;
+
+import vkw.logical_device;
+import vkw.util;
+import vkw.subpass;
 
 
-namespace vkw {
+export namespace vkw {
 
 class render_pass {
 public:

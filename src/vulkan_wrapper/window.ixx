@@ -1,5 +1,6 @@
-#pragma once
+module;
 
+#include <exception>
 #include <memory>
 
 #define GLFW_INCLUDE_VULKAN
@@ -7,8 +8,10 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
+export module vkw.window;
 
-namespace vkw {
+
+export namespace vkw {
 
 class window {
 public:

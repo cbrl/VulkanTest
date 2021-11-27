@@ -1,17 +1,17 @@
-#pragma once
+module;
 
 #include <limits>
 #include <span>
 
-#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
-#include "queue.h"
-#include "util.h"
+export module vkw.buffer;
 
+import vkw.logical_device;
+import vkw.queue;
+import vkw.util;
 
-namespace vkw {
+export namespace vkw {
 
 template<typename T>
 class buffer {

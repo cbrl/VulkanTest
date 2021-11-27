@@ -1,10 +1,14 @@
-#pragma once
+module;
 
+#include <cstdint>
 #include <vector>
+
 #include <vulkan/vulkan_raii.hpp>
 
+export module vkw.subpass;
 
-namespace vkw {
+
+export namespace vkw {
 
 class subpass {
 public:

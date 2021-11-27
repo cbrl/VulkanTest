@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <algorithm>
 #include <memory>
@@ -8,10 +8,12 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
+export module vkw.swapchain;
+
+import vkw.logical_device;
 
 
-namespace vkw {
+export namespace vkw {
 
 class swapchain {
 public:

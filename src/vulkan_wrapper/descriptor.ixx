@@ -1,5 +1,6 @@
-#pragma once
+module;
 
+#include <numeric>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -7,10 +8,13 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
+export module vkw.descriptor;
+
+import vkw.logical_device;
+import vkw.util;
 
 
-namespace vkw {
+export namespace vkw {
 	
 class descriptor_set_layout {
 public:

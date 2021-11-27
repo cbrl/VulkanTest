@@ -1,15 +1,15 @@
-#pragma once
+module;
 
-#include <limits>
 #include <span>
-
-#include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "logical_device.h"
-#include "util.h"
+export module vkw.image;
 
-namespace vkw {
+import vkw.logical_device;
+import vkw.util;
+
+
+export namespace vkw {
 
 class image {
 public:

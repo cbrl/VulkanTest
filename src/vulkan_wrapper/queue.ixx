@@ -1,11 +1,20 @@
-#pragma once
+module;
+
+#include <cstdint>
+#include <exception>
+#include <iostream>
+#include <optional>
+#include <ranges>
+#include <span>
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "util.h"
+export module vkw.queue;
+
+import vkw.util;
 
 
-namespace vkw {
+export namespace vkw {
 
 struct queue_info {
 	float priority = 1.0f;
