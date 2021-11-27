@@ -67,7 +67,7 @@ auto main(int argc, char** argv) -> int {
 
 	// Window
 	//--------------------------------------------------------------------------------
-	auto window = vkw::window{instance.get_vk_instance(), "My Window", {1280, 1024}};
+	auto window = vkw::window{instance.get_vk_instance(), "Vulkan Window", {1280, 1024}};
 
 
 	// Logical Device
