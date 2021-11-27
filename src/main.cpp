@@ -28,6 +28,7 @@
 #include "vulkan_wrapper/image.h"
 #include "vulkan_wrapper/instance.h"
 #include "vulkan_wrapper/logical_device.h"
+#include "vulkan_wrapper/pipeline.h"
 #include "vulkan_wrapper/render_pass.h"
 #include "vulkan_wrapper/swapchain.h"
 #include "vulkan_wrapper/window.h"
@@ -40,7 +41,7 @@ static constexpr uint32_t Width = 800;
 static constexpr uint32_t Height = 600;
 */
 
-int main(int argc, char** argv) {
+auto main(int argc, char** argv) -> int {
 	glfwInit();
 
 
@@ -222,9 +223,18 @@ int main(int argc, char** argv) {
 		vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr}
 	};
 
-	auto descriptor_layout = vkw::descriptor_set_layout{logical_device, bindings};
+	const auto descriptor_layout = vkw::descriptor_set_layout{logical_device, bindings};
 
 	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
+
+
+	// Pipeline
+	//--------------------------------------------------------------------------------
+	const auto pipeline_layout = vkw::pipeline_layout{
+		logical_device,
+		std::span{&descriptor_layout, 1},
+		std::span<const vk::PushConstantRange>{}
+	};
 
 /*
 	// Window

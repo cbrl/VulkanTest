@@ -22,9 +22,9 @@ public:
 		std::span<const descriptor_set_layout> layouts,
 		std::span<const vk::PushConstantRange> ranges
 	) :
-		layout(make_layout(device, layouts, ranges)),
 		descriptor_layouts(layouts.begin(), layouts.end()),
-		push_constant_ranges(ranges.begin(), ranges.end()) {
+		push_constant_ranges(ranges.begin(), ranges.end()),
+		layout(make_layout(device, layouts, ranges)) {
 	}
 
 	[[nodiscard]]
@@ -49,29 +49,28 @@ public:
 		uint32_t first_set,
 		const std::vector<uint32_t>& offsets
 	) -> void {
-		const auto sets = std::array{descriptor_set};
-		bind_descriptor_sets(cmd_buffer, bind_point, sets, first_set, offsets);
+		bind_descriptor_sets(cmd_buffer, bind_point, first_set, std::span{&descriptor_set, 1}, offsets);
 	}
 
 	auto bind_descriptor_sets(
 		vk::raii::CommandBuffer& cmd_buffer,
 		vk::PipelineBindPoint bind_point,
-		std::span<const vk::raii::DescriptorSet> descriptor_sets,
 		uint32_t first_set,
+		std::span<const vk::raii::DescriptorSet> descriptor_sets,
 		const std::vector<uint32_t>& offsets
 	) -> void {
 		const auto sets = vkw::util::to_vector(vkw::util::as_handles(descriptor_sets));
-		cmd_buffer.bindDescriptorSets(bind_point, *layout, sets, first_set, descriptor_sets, offsets)
+		bind_descriptor_sets(cmd_buffer, bind_point, first_set, sets, offsets);
 	}
 
 	auto bind_descriptor_sets(
 		vk::raii::CommandBuffer& cmd_buffer,
 		vk::PipelineBindPoint bind_point,
-		std::span<const vk::DescriptorSet> descriptor_sets,
 		uint32_t first_set,
+		std::span<const vk::DescriptorSet> descriptor_sets,
 		const std::vector<uint32_t>& offsets
 	) -> void {
-		cmd_buffer.bindDescriptorSets(bind_point, *layout, descriptor_sets, first_set, descriptor_sets, offsets)
+		cmd_buffer.bindDescriptorSets(bind_point, *layout, first_set, descriptor_sets, offsets);
 	}
 
 private:
@@ -87,7 +86,7 @@ private:
 		vk_layouts.reserve(descriptor_layouts.size());
 
 		for (const auto& layout : descriptor_layouts) {
-			vk_layouts.push_back(*layout.get().get_vk_layout());
+			vk_layouts.push_back(*layout.get_vk_layout());
 		}
 
 		const auto layout_create_info = vk::PipelineLayoutCreateInfo{
@@ -99,9 +98,10 @@ private:
 		return vk::raii::PipelineLayout{device.get_vk_device(), layout_create_info};
 	}
 
-	vk::raii::PipelineLayout layout;
 	std::span<const descriptor_set_layout> descriptor_layouts;
 	std::vector<vk::PushConstantRange> push_constant_ranges;
+
+	vk::raii::PipelineLayout layout;
 };
 
 } //namespace vkw
