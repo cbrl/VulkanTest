@@ -208,6 +208,24 @@ int main(int argc, char** argv) {
     const auto mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(window.get_size());
 	uniform_buffer.upload(mvpc_matrix);
 
+
+	// Descriptor Pool
+	//--------------------------------------------------------------------------------
+	const auto pool_sizes = std::vector{vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 1}};
+
+	auto descriptor_pool = vkw::descriptor_pool{logical_device, pool_sizes};
+
+
+	// Descriptor Set
+	//--------------------------------------------------------------------------------
+	const auto bindings = std::vector{
+		vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr}
+	};
+
+	auto descriptor_layout = vkw::descriptor_set_layout{logical_device, bindings};
+
+	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
+
 /*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});

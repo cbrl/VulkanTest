@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ranges>
 #include <span>
 #include <utility>
 #include <vector>
@@ -57,9 +58,22 @@ public:
 		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
 	) :
 		device(device),
-		pool(make_descriptor_pool(device, pool_sizes, max_sets, flags)),
 		sizes(pool_sizes.begin(), pool_sizes.end()),
-		max(max_sets) {
+		max(max_sets),
+		pool(make_descriptor_pool(device, pool_sizes, max_sets, flags)) {
+	}
+	
+	descriptor_pool(
+		const logical_device& device,
+		std::span<const vk::DescriptorPoolSize> pool_sizes,
+		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
+	) :
+		descriptor_pool(
+			device,
+			pool_sizes,
+			std::reduce(pool_sizes.begin(), pool_sizes.end(), uint32_t{0}, [](uint32_t sum, const auto& size) { return sum + size.descriptorCount; }),
+			flags
+		) {
 	}
 
 	[[nodiscard]]
@@ -104,10 +118,13 @@ private:
 		return vk::raii::DescriptorPool(device.get_vk_device(), pool_create_info);
 	}
 
+
 	std::reference_wrapper<const logical_device> device;
-	vk::raii::DescriptorPool pool;
+	
 	std::vector<vk::DescriptorPoolSize> sizes;
 	uint32_t max = 0;
+
+	vk::raii::DescriptorPool pool;
 };
 
 } //namespace vkw
