@@ -18,11 +18,11 @@ public:
 		vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
 		vk::Extent3D            extent;
 		vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
-		vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+		vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
 		vk::ImageLayout         initial_layout    = vk::ImageLayout::eUndefined;
 		vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 		vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
-		vk::ComponentMapping    component_mapping = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+		vk::ComponentMapping    component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
 		vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
 	};
 
