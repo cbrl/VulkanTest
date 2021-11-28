@@ -107,6 +107,7 @@ private:
 };
 
 
+namespace util {
 [[nodiscard]]
 inline auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
 	return image{
@@ -120,5 +121,6 @@ inline auto create_depth_buffer(const vkw::logical_device& device, vk::Format fo
 		}
 	};
 }
+} //namespace util
 
 } //namespace vkw

@@ -136,7 +136,7 @@ auto main(int argc, char** argv) -> int {
 
 	// Depth Buffer
 	//--------------------------------------------------------------------------------
-	auto depth_buffer = create_depth_buffer(logical_device, vk::Format::eD16Unorm, window.get_size());
+	auto depth_buffer = vkw::util::create_depth_buffer(logical_device, vk::Format::eD16Unorm, window.get_size());
 
 
 	// Render Pass
