@@ -272,6 +272,7 @@ public:
 		}
 
 
+		// Pipeline stage creation info
 		vk::PipelineVertexInputStateCreateInfo   vertex_input_state;
 		vk::PipelineInputAssemblyStateCreateInfo input_assembly_state;
 		vk::PipelineTessellationStateCreateInfo  tessellation_state;
@@ -282,11 +283,14 @@ public:
 		vk::PipelineColorBlendStateCreateInfo    color_blend_state;
 		vk::PipelineDynamicStateCreateInfo       dynamic_state;
 
+		// The shader stages this pipeline is composed of
 		std::vector<std::reference_wrapper<const shader_stage>> shader_stages;
 
-		const pipeline_layout* layout;
+		// The pipeline layout
+		const pipeline_layout* layout = nullptr;
 
-		const render_pass* pass;
+		// The render pass and subpass
+		const render_pass* pass = nullptr;
 		uint32_t subpass = 0;
 
 	private:
@@ -315,8 +319,8 @@ private:
 		vk::raii::PipelineCache* cache = nullptr
 	) -> vk::raii::Pipeline {
 
-		assert(info.layout);
-		assert(info.pass);
+		assert(info.layout && "pipeline_info::layout must not be null");
+		assert(info.pass && "pipeline_info::pass must not be null");
 
 		const auto stages = vkw::util::to_vector(std::views::transform(info.shader_stages, &shader_stage::get_create_info));
 
