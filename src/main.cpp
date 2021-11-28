@@ -169,7 +169,7 @@ auto main(int argc, char** argv) -> int {
 	pass_info.attachment_descriptions.push_back( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
-			depth_buffer.get_format(),
+			depth_buffer.get_info().format,
 			vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eDontCare,

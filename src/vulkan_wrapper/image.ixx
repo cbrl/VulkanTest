@@ -13,46 +13,30 @@ export namespace vkw {
 
 class image {
 public:
-	image(
-		const logical_device&   device,
-		vk::ImageType           type,
-		vk::ImageViewType       view_type,
-		vk::Format              format,
-		vk::Extent3D            extent,
-		vk::ImageTiling         tiling,
-		vk::ImageUsageFlags     usage,
-		vk::ImageLayout         initial_layout,
-		vk::MemoryPropertyFlags memory_properties,
-		vk::ImageAspectFlags    aspect_mask
-	) :
-		type(type),
-		view_type(view_type),
-		format(format),
-		extent(extent),
-		vk_image(create_image(device, type, format, extent, tiling, usage, initial_layout)),
-		device_memory(create_memory(device, vk_image, memory_properties)),
-		image_view(create_view(device, vk_image, view_type, format, aspect_mask)) {
+	struct image_info {
+		vk::ImageType           type              = vk::ImageType::e2D;
+		vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
+		vk::Extent3D            extent;
+		vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
+		vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+		vk::ImageLayout         initial_layout    = vk::ImageLayout::eUndefined;
+		vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+		vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
+		vk::ComponentMapping    component_mapping = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+		vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
+	};
+
+	image(const logical_device& device, const image_info& info) :
+		info(info),
+		vk_image(create_image(device, info)),
+		device_memory(create_memory(device, vk_image, info.memory_properties)),
+		image_view(create_view(device, vk_image, info)) {
 
 	}
 
 	[[nodiscard]]
-	auto get_type() const noexcept -> vk::ImageType {
-		return type;
-	}
-
-	[[nodiscard]]
-	auto get_view_type() const noexcept -> vk::ImageViewType {
-		return view_type;
-	}
-
-	[[nodiscard]]
-	auto get_format() const noexcept -> vk::Format {
-		return format;
-	}
-
-	[[nodiscard]]
-	auto get_extent() const noexcept -> vk::Extent3D {
-		return extent;
+	auto get_info() const noexcept -> const image_info& {
+		return info;
 	}
 
 	[[nodiscard]]
@@ -67,28 +51,20 @@ public:
 
 private:
 
-	static auto create_image(
-		const logical_device& device,
-		vk::ImageType         type,
-		vk::Format            format,
-		vk::Extent3D          extent,
-		vk::ImageTiling       tiling,
-		vk::ImageUsageFlags   usage,
-		vk::ImageLayout       initial_layout
-	) -> vk::raii::Image {
+	static auto create_image(const logical_device& device, const image_info& info) -> vk::raii::Image {
 		const auto image_create_info = vk::ImageCreateInfo{
 			vk::ImageCreateFlags{},
-			type,
-			format,
-			extent,
+			info.type,
+			info.format,
+			info.extent,
 			1,
 			1,
 			vk::SampleCountFlagBits::e1,
-			tiling,
-			usage | vk::ImageUsageFlagBits::eSampled,
+			info.tiling,
+			info.usage,
 			vk::SharingMode::eExclusive,
 			{},
-			initial_layout
+			info.initial_layout
 		};
 
 		return vk::raii::Image{device.get_vk_device(), image_create_info};
@@ -107,24 +83,15 @@ private:
 	static auto create_view(
 		const logical_device&  device,
 		const vk::raii::Image& vk_image,
-		vk::ImageViewType      type,
-		vk::Format             format,
-		vk::ImageAspectFlags   aspect_mask
-	) -> vk::raii::ImageView {
-		const auto component_mapping = vk::ComponentMapping{
-			vk::ComponentSwizzle::eR,
-			vk::ComponentSwizzle::eG,
-			vk::ComponentSwizzle::eB,
-			vk::ComponentSwizzle::eA
-		};
-	
-		const auto image_subresource_range = vk::ImageSubresourceRange{aspect_mask, 0, 1, 0, 1};
+		const image_info&      info
+	) -> vk::raii::ImageView {	
+		const auto image_subresource_range = vk::ImageSubresourceRange{info.aspect_flags, 0, 1, 0, 1};
 		const auto image_view_create_info  = vk::ImageViewCreateInfo{
 			vk::ImageViewCreateFlags{},
 			*vk_image,
-			type,
-			format,
-			component_mapping,
+			info.view_type,
+			info.format,
+			info.component_mapping,
 			image_subresource_range
 		};
 
@@ -132,10 +99,7 @@ private:
 	}
 
 
-	vk::ImageType     type;
-	vk::ImageViewType view_type;
-	vk::Format        format;
-	vk::Extent3D      extent;
+	image_info info;
 
 	vk::raii::Image        vk_image;
 	vk::raii::DeviceMemory device_memory;
@@ -147,15 +111,13 @@ private:
 inline auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
 	return image{
 		device,
-		vk::ImageType::e2D,
-		vk::ImageViewType::e2D,
-		format,
-		vk::Extent3D{extent, 1},
-		vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eDepthStencilAttachment,
-		vk::ImageLayout::eUndefined,
-		vk::MemoryPropertyFlagBits::eDeviceLocal,
-		vk::ImageAspectFlagBits::eDepth
+		image::image_info{
+			.format = format,
+			.extent = vk::Extent3D{extent, 1},
+			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
+			.aspect_flags = vk::ImageAspectFlagBits::eDepth
+		}
 	};
 }
 
