@@ -142,15 +142,17 @@ auto main(int argc, char** argv) -> int {
 	// Render Pass
 	//--------------------------------------------------------------------------------
 
-	// Create a render pass
-	auto render_pass = vkw::render_pass{logical_device};
+	// Setup the render pass info
+	auto pass_info = vkw::render_pass::render_pass_info{};
+
+	pass_info.area_rect = vk::Rect2D{{0, 0}, window.get_size()};
 
 	auto graphics_subpass = vkw::subpass{};
 	graphics_subpass.add_color_attachment(vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal});
 	graphics_subpass.set_depth_stencil_attachment(vk::AttachmentReference{1, vk::ImageLayout::eDepthStencilAttachmentOptimal});
-	render_pass.add_subpass(graphics_subpass);
+	pass_info.subpasses.push_back(graphics_subpass);
 
-	render_pass.add_attachment( //color attachment
+	pass_info.attachment_descriptions.push_back( //color attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			swapchain.get_format().format,
@@ -163,7 +165,8 @@ auto main(int argc, char** argv) -> int {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-	render_pass.add_attachment( //depth attachment
+	
+	pass_info.attachment_descriptions.push_back( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
 			depth_buffer.get_format(),
@@ -177,12 +180,13 @@ auto main(int argc, char** argv) -> int {
 		}
 	);
 
-	const auto image_views = std::vector<std::vector<vk::ImageView>>{
+	pass_info.target_attachments = {
 		{*swapchain.get_image_views()[0], *depth_buffer.get_vk_image_view()},
 		{*swapchain.get_image_views()[1], *depth_buffer.get_vk_image_view()},
 	};
 
-	render_pass.create(image_views, vk::Rect2D{{0, 0}, window.get_size()});
+	// Create a render pass
+	auto render_pass = vkw::render_pass{logical_device, pass_info};
 
 
 	// Vertex Buffer
@@ -229,13 +233,66 @@ auto main(int argc, char** argv) -> int {
 	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
 
 
+	// Shaders
+	//--------------------------------------------------------------------------------
+	const auto glsl_to_spirv = [](vk::ShaderStageFlagBits stage, const std::string& shader) {
+		auto spirv = std::vector<uint32_t>{};
+		if (!vk::su::GLSLtoSPV(stage, shader, spirv)) {
+			throw std::runtime_error{"Error translating GLSL to SPIR-V"};
+		}
+		return spirv;
+	};
+
+    glslang::InitializeProcess();
+	const auto vertex_shader_data   = glsl_to_spirv(vk::ShaderStageFlagBits::eVertex, vertexShaderText_PC_C);
+	const auto fragment_shader_data = glsl_to_spirv(vk::ShaderStageFlagBits::eFragment, fragmentShaderText_C_C);
+    glslang::FinalizeProcess();
+
+	auto vertex_stage   = vkw::shader_stage{logical_device, vk::ShaderStageFlagBits::eVertex, vertex_shader_data, {}, {}};
+	auto fragment_stage = vkw::shader_stage{logical_device, vk::ShaderStageFlagBits::eFragment, fragment_shader_data, {}, {}};
+
+
 	// Pipeline
 	//--------------------------------------------------------------------------------
+
+	// Create a pipeline cache
+	auto cache = vk::raii::PipelineCache{logical_device.get_vk_device(), vk::PipelineCacheCreateInfo{}};
+
+	// Setup the pipeline info
 	const auto pipeline_layout = vkw::pipeline_layout{
 		logical_device,
 		std::span{&descriptor_layout, 1},
 		std::span<const vk::PushConstantRange>{}
 	};
+
+	auto pipeline_info = vkw::graphics_pipeline::pipeline_info{};
+
+	pipeline_info.layout        = &pipeline_layout;
+	pipeline_info.pass          = &render_pass;
+	pipeline_info.shader_stages = {std::cref(vertex_stage), std::cref(fragment_stage)};
+
+	pipeline_info.add_vertex_input_binding(vk::VertexInputBindingDescription{0, static_cast<uint32_t>(sizeof(coloredCubeData[0]))});
+	pipeline_info.add_vertex_input_attribute(vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0});
+	pipeline_info.add_vertex_input_attribute(vk::VertexInputAttributeDescription{1, 0, vk::Format::eR32G32B32A32Sfloat, 16});
+	pipeline_info.add_color_blend_attachment(
+		vk::PipelineColorBlendAttachmentState{
+			false,
+			vk::BlendFactor::eZero,
+			vk::BlendFactor::eZero,
+			vk::BlendOp::eAdd,
+			vk::BlendFactor::eZero,
+			vk::BlendFactor::eZero,
+			vk::BlendOp::eAdd,
+			vk::ColorComponentFlagBits::eR
+			| vk::ColorComponentFlagBits::eG
+			| vk::ColorComponentFlagBits::eB
+			| vk::ColorComponentFlagBits::eA
+		}
+	);
+
+	// Create the pipeline
+	auto pipeline = vkw::graphics_pipeline{logical_device, pipeline_info, &cache};
+
 
 /*
 	// Window
