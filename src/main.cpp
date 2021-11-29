@@ -203,7 +203,7 @@ auto main(int argc, char** argv) -> int {
 	);
 
 	// Copy data into vertex buffer
-    auto* data = static_cast<uint8_t*>(vertex_buffer_memory.mapMemory(0, memory_requirements.size));
+    auto* data = vertex_buffer_memory.mapMemory(0, memory_requirements.size);
     std::memcpy(data, coloredCubeData, sizeof(coloredCubeData));
     vertex_buffer_memory.unmapMemory();
 

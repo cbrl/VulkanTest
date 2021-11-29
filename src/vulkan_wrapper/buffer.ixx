@@ -72,8 +72,10 @@ public:
 		auto staging_buffer = buffer<T>{device, data.size(), vk::BufferUsageFlagBits::eTransferSrc};
 		staging_buffer.upload(data);
 
-		auto  cmd_buffers    = vk::raii::CommandBuffers{device.get_vk_device(), vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}};
-		auto& command_buffer = cmd_buffers.front();
+		auto command_buffer = vk::raii::CommandBuffers{
+			device.get_vk_device(),
+			vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}
+		}.front();
 
 		command_buffer.begin(vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
         command_buffer.copyBuffer(**staging_buffer.buffer, **this->buffer, vk::BufferCopy{0, 0, data_size});

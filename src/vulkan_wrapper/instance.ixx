@@ -212,14 +212,12 @@ private:
 		};
 
 		if (debug_config.utils) {
-			const auto severity_flags =
-				vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
-				| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+			const auto severity_flags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+			                            | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
 
-			const auto message_type_flags =
-				vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
-				| vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
-				| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
+			const auto message_type_flags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
+			                                | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+			                                | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
 			// Instance create info structure chain
 			const auto instance_create_info = vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT>{

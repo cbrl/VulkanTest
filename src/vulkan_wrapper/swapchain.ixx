@@ -121,8 +121,8 @@ private:
 		images.reserve(swap_images.size());
 		std::ranges::copy(swap_images, std::back_inserter(images));
 
-		const auto component_mapping = vk::ComponentMapping(vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA);
-		const auto subresource_range = vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+		const auto component_mapping = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+		const auto subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
 
 		image_views.reserve(images.size());
 		for (const auto& image : images) {
