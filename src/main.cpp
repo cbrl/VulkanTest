@@ -48,15 +48,15 @@ auto main(int argc, char** argv) -> int {
 
 	// Instance
 	//--------------------------------------------------------------------------------
-	const auto app_info = vkw::instance::app_info{};
+	const auto app_info = vkw::app_info{};
 
-	auto instance_info = vkw::instance::instance_info{
+	auto instance_info = vkw::instance_info{
 		.layers = {},
 		.extensions = vkw::util::get_surface_extensions()
 	};
 	instance_info.extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
-	const auto debug_info = vkw::instance::debug_info{
+	const auto debug_info = vkw::debug_info{
 		.utils = true,
 		.validation = true
 	};
@@ -72,7 +72,7 @@ auto main(int argc, char** argv) -> int {
 
 	// Logical Device
 	//--------------------------------------------------------------------------------
-	auto device_info = vkw::logical_device::logical_device_info{
+	auto device_info = vkw::logical_device_info{
 		.physical_device = physical_device,
 		.features = {},
 		.extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}
@@ -143,7 +143,7 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 
 	// Setup the render pass info
-	auto pass_info = vkw::render_pass::render_pass_info{};
+	auto pass_info = vkw::render_pass_info{};
 
 	pass_info.area_rect = vk::Rect2D{{0, 0}, window.get_size()};
 
@@ -193,19 +193,6 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 	auto vertex_buffer = vkw::buffer<VertexPC>{logical_device, std::size(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer};
 	vertex_buffer.upload(coloredCubeData);
-
-	// Allocate memory for the vertex buffer
-	const auto memory_requirements = vertex_buffer.get_vk_buffer().getMemoryRequirements();
-
-	auto vertex_buffer_memory = logical_device.create_device_memory(
-		memory_requirements,
-		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-	);
-
-	// Copy data into vertex buffer
-    auto* data = vertex_buffer_memory.mapMemory(0, memory_requirements.size);
-    std::memcpy(data, coloredCubeData, sizeof(coloredCubeData));
-    vertex_buffer_memory.unmapMemory();
 
 
 	// Model Uniform Buffer
@@ -330,22 +317,6 @@ auto main(int argc, char** argv) -> int {
 	// Vertex Buffer
 	auto vertexBuffer = Buffer<VertexPC>(*context.physical_device, *context.device, std::size(coloredCubeData), vk::BufferUsageFlagBits::eVertexBuffer);
 	vertexBuffer.upload(coloredCubeData);
-
-	// Allocate memory for the vertex buffer
-    const auto memoryRequirements = vertexBuffer.buffer->getMemoryRequirements();
-    const uint32_t memoryTypeIndex = findMemoryType(
-		context.physical_device->getMemoryProperties(),
-		memoryRequirements.memoryTypeBits,
-		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-	);
-
-    const auto memoryAllocateInfo = vk::MemoryAllocateInfo(memoryRequirements.size, memoryTypeIndex);
-    std::unique_ptr<vk::raii::DeviceMemory> deviceMemory = std::make_unique<vk::raii::DeviceMemory>(*context.device, memoryAllocateInfo);
-
-	// Copy data into vertex buffer
-    auto* pData = static_cast<uint8_t*>(deviceMemory->mapMemory(0, memoryRequirements.size));
-    std::memcpy(pData, coloredCubeData, sizeof(coloredCubeData));
-    deviceMemory->unmapMemory();
 
 	// Pipeline Layout
 	std::unique_ptr<vk::raii::DescriptorSetLayout> descriptor_set_layout = makeDescriptorSetLayout(*context.device, {{vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}});

@@ -37,14 +37,14 @@ auto as_handles(V&& v) {
 
 
 [[nodiscard]]
-inline auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
+auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
 	return std::ranges::any_of(extension_properties, [&](const auto& prop) {
 		return strcmp(extension, prop.extensionName.data()) == 0;
 	});
 }
 
 [[nodiscard]]
-inline auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
+auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
 	return std::ranges::any_of(layer_properties, [&](const auto& prop) {
 		return strcmp(layer, prop.layerName.data()) == 0;
 	});
@@ -69,7 +69,7 @@ auto separate_flags(vk::Flags<BitType> flags) -> std::vector<BitType> {
 
 
 [[nodiscard]]
-inline auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
+auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
 	// Priority list of formats to look for
 	static const vk::Format desired_formats[] = {
 		vk::Format::eB8G8R8A8Srgb,
@@ -93,7 +93,7 @@ inline auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& 
 }
 
 [[nodiscard]]
-inline auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
+auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
 	// Priority list of formats to look for
 	static const vk::Format desired_formats[] = {
 		vk::Format::eB8G8R8A8Unorm,
@@ -118,7 +118,7 @@ inline auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>&
 
 
 [[nodiscard]]
-inline auto find_memory_type(const vk::PhysicalDeviceMemoryProperties& memory_properties, uint32_t memory_type_bits, vk::MemoryPropertyFlags property_flags) -> uint32_t {
+auto find_memory_type(const vk::PhysicalDeviceMemoryProperties& memory_properties, uint32_t memory_type_bits, vk::MemoryPropertyFlags property_flags) -> uint32_t {
 	auto type_index = std::numeric_limits<uint32_t>::max();
 
 	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {

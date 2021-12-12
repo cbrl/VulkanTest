@@ -44,32 +44,34 @@ auto get_surface_extensions() -> std::vector<const char*> {
 }
 } //namespace util
 
+
+struct app_info {
+	std::string app_name = "VulkanApp";
+	uint32_t app_version_major = 0;
+	uint32_t app_version_minor = 0;
+	uint32_t app_vesrion_patch = 0;
+
+	std::string engine_name = "VulkanEngine";
+	uint32_t engine_version_major = 0;
+	uint32_t engine_version_minor = 0;
+	uint32_t engine_vesrion_patch = 0;
+
+	uint32_t api_version = VK_API_VERSION_1_2;
+};
+
+struct instance_info {
+	std::vector<const char*> layers = {};
+	std::vector<const char*> extensions = {};
+};
+
+struct debug_info {
+	bool utils = false;
+	bool validation = false;
+};
+
+
 class instance {
 public:
-	struct app_info {
-		std::string app_name = "VulkanApp";
-		uint32_t app_version_major = 0;
-		uint32_t app_version_minor = 0;
-		uint32_t app_vesrion_patch = 0;
-
-		std::string engine_name = "VulkanEngine";
-		uint32_t engine_version_major = 0;
-		uint32_t engine_version_minor = 0;
-		uint32_t engine_vesrion_patch = 0;
-
-		uint32_t api_version = VK_API_VERSION_1_2;
-	};
-
-	struct instance_info {
-		std::vector<const char*> layers = {};
-		std::vector<const char*> extensions = {};
-	};
-
-	struct debug_info {
-		bool utils = false;
-		bool validation = false;
-	};
-
 	instance(const app_info& app_cfg, const instance_info& instance_cfg, const debug_info& debug_cfg) :
 		app_config(app_cfg),
 		instance_config(process_config(vk_context, instance_cfg, debug_cfg)),

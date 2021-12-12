@@ -109,7 +109,7 @@ private:
 
 namespace util {
 [[nodiscard]]
-inline auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
+auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
 	return image{
 		device,
 		image::image_info{

@@ -17,18 +17,18 @@ import vkw.subpass;
 
 export namespace vkw {
 
+struct render_pass_info {
+	std::vector<std::reference_wrapper<const subpass>> subpasses;
+	std::vector<vk::SubpassDependency> subpass_dependencies;
+
+	std::vector<std::vector<vk::ImageView>> target_attachments;
+	std::vector<vk::AttachmentDescription> attachment_descriptions;
+
+	vk::Rect2D area_rect;
+};
+
 class render_pass {
 public:
-	struct render_pass_info {
-		std::vector<std::reference_wrapper<const subpass>> subpasses;
-		std::vector<vk::SubpassDependency> subpass_dependencies;
-
-		std::vector<std::vector<vk::ImageView>> target_attachments;
-		std::vector<vk::AttachmentDescription> attachment_descriptions;
-
-		vk::Rect2D area_rect;
-	};
-
 	render_pass(const logical_device& device, const render_pass_info& info) :
 		info(info),
 		pass(create_render_pass(device, info)),

@@ -10,7 +10,7 @@ export module vkw.debug;
 
 export namespace vkw::debug {
 
-inline VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
+VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
 	const VkDebugUtilsMessengerCallbackDataEXT*  pCallbackData,
@@ -64,7 +64,7 @@ inline VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 }
 
 
-inline auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
+auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
 	if (layer_properties.empty()) {
 		std::cout << "No layer properties" << std::endl;
 		throw std::runtime_error("No layer properties");
@@ -92,7 +92,7 @@ inline auto validate_layers(const std::vector<const char*>& layers, const std::v
 }
 
 
-inline auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
+auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
 	if (ext_properties.empty()) {
 		std::cout << "No extension properties" << std::endl;
 		throw std::runtime_error("No extension properties");

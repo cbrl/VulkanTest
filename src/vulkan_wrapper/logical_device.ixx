@@ -21,82 +21,83 @@ import vkw.util;
 
 export namespace vkw {
 
+struct logical_device_info {
+	auto add_all_queues(float priority) -> void {
+		queue_family_info_list.clear();
+		const auto properties = physical_device.get().getQueueFamilyProperties();
+
+		for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
+			const auto& prop = properties[family_idx];
+			add_queues(static_cast<uint32_t>(family_idx), priority, prop.queueCount);
+		}
+	}
+
+	auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> std::optional<uint32_t> {
+		const auto properties = physical_device.get().getQueueFamilyProperties();
+
+		// Enumerate available queue properties, and subtract the number of currently added
+		// queues from their queue counts.
+		auto available_props = decltype(properties){};
+		available_props.reserve(properties.size());
+
+		for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
+			auto prop = properties[family_idx];
+
+			for (const auto& family_info : queue_family_info_list) {
+				if (family_info.family_idx == family_idx) {
+					prop.queueCount -= static_cast<uint32_t>(family_info.queues.size());
+					break;
+				}
+			}
+
+			available_props.push_back(std::move(prop));
+		}
+
+		// Try to find a queue with the exact combination of flags specified
+		const auto exact_idx = util::find_queue_family_index_strong(available_props, flags);
+		if (exact_idx.has_value() and (available_props[*exact_idx].queueCount >= count)) {
+			add_queues(exact_idx.value(), priority, count);
+			return exact_idx;
+		}
+
+		// If no queues with the exact flags were found, then add the first one which has a match.
+		const auto weak_idx = util::find_queue_family_index_weak(available_props, flags);
+		if (weak_idx.has_value() and (available_props[*weak_idx].queueCount >= count)) {
+			add_queues(weak_idx.value(), priority, count);
+			return weak_idx;
+		}
+
+		return {};
+	}
+
+	auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
+		for (auto& family_info : queue_family_info_list) {
+			if (family_info.family_idx == family_idx) {
+				for (uint32_t i = 0; i < count; ++i) {
+					family_info.queues.emplace_back(priority);
+				}
+				return;
+			}
+		}
+
+		// Add a new QueueFamilyInfo if one with the specified family index was not found
+		const auto properties = physical_device.get().getQueueFamilyProperties();
+		auto& family_info = queue_family_info_list.emplace_back(family_idx, properties[family_idx].queueFlags);
+
+		for (uint32_t i = 0; i < count; ++i) {
+			family_info.queues.emplace_back(priority);
+		}
+	}
+
+	std::reference_wrapper<vk::raii::PhysicalDevice> physical_device;
+	vk::PhysicalDeviceFeatures features;
+	std::vector<const char*> extensions;
+	std::vector<queue_family_info> queue_family_info_list;
+};
+
+
 class logical_device {
 public:
-	struct logical_device_info {
-		auto add_all_queues(float priority) -> void {
-			queue_family_info_list.clear();
-			const auto properties = physical_device.get().getQueueFamilyProperties();
-
-			for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
-				const auto& prop = properties[family_idx];
-				add_queues(static_cast<uint32_t>(family_idx), priority, prop.queueCount);
-			}
-		}
-
-		auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> std::optional<uint32_t> {
-			const auto properties = physical_device.get().getQueueFamilyProperties();
-
-			// Enumerate available queue properties, and subtract the number of currently added
-			// queues from their queue counts.
-			auto available_props = decltype(properties){};
-			available_props.reserve(properties.size());
-
-			for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
-				auto prop = properties[family_idx];
-
-				for (const auto& family_info : queue_family_info_list) {
-					if (family_info.family_idx == family_idx) {
-						prop.queueCount -= static_cast<uint32_t>(family_info.queues.size());
-						break;
-					}
-				}
-
-				available_props.push_back(std::move(prop));
-			}
-
-			// Try to find a queue with the exact combination of flags specified
-			const auto exact_idx = util::find_queue_family_index_strong(available_props, flags);
-			if (exact_idx.has_value() and (available_props[*exact_idx].queueCount >= count)) {
-				add_queues(exact_idx.value(), priority, count);
-				return exact_idx;
-			}
-
-			// If no queues with the exact flags were found, then add the first one which has a match.
-			const auto weak_idx = util::find_queue_family_index_weak(available_props, flags);
-			if (weak_idx.has_value() and (available_props[*weak_idx].queueCount >= count)) {
-				add_queues(weak_idx.value(), priority, count);
-				return weak_idx;
-			}
-
-			return {};
-		}
-
-		auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
-			for (auto& family_info : queue_family_info_list) {
-				if (family_info.family_idx == family_idx) {
-					for (uint32_t i = 0; i < count; ++i) {
-						family_info.queues.emplace_back(priority);
-					}
-					return;
-				}
-			}
-
-			// Add a new QueueFamilyInfo if one with the specified family index was not found
-			const auto properties = physical_device.get().getQueueFamilyProperties();
-			auto& family_info = queue_family_info_list.emplace_back(family_idx, properties[family_idx].queueFlags);
-
-			for (uint32_t i = 0; i < count; ++i) {
-				family_info.queues.emplace_back(priority);
-			}
-		}
-
-		std::reference_wrapper<vk::raii::PhysicalDevice> physical_device;
-		vk::PhysicalDeviceFeatures features;
-		std::vector<const char*> extensions;
-		std::vector<queue_family_info> queue_family_info_list;
-	};
-
 	logical_device(const logical_device_info& info) : device_info(info), device(create_device(device_info)) {
 		// First queue pass: map queues to their exact queue flags.
 		// E.g. If a queue is specified which suports only Compute, then map that as the first
