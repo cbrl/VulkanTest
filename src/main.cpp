@@ -23,16 +23,7 @@
 #include <thread>
 #include <vector>
 
-import vkw.buffer;
-import vkw.descriptor;
-import vkw.image;
-import vkw.instance;
-import vkw.logical_device;
-import vkw.pipeline;
-import vkw.render_pass;
-import vkw.swapchain;
-import vkw.util;
-import vkw.window;
+import vkw;
 
 /*
 static const std::string AppName = "VulkanTest";
@@ -252,7 +243,7 @@ auto main(int argc, char** argv) -> int {
 		std::span<const vk::PushConstantRange>{}
 	};
 
-	auto pipeline_info = vkw::graphics_pipeline::pipeline_info{};
+	auto pipeline_info = vkw::graphics_pipeline_info{};
 
 	pipeline_info.layout        = &pipeline_layout;
 	pipeline_info.pass          = &render_pass;

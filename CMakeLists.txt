@@ -28,6 +28,7 @@ add_executable(${PROJECT_NAME}
 	src/utils/utils.cpp
 	src/utils/shaders.cpp
 	src/utils/math.cpp
+	src/vulkan_wrapper/vkw.ixx
 	src/vulkan_wrapper/buffer.ixx
 	src/vulkan_wrapper/debug.ixx
 	src/vulkan_wrapper/descriptor.ixx
@@ -35,8 +36,10 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/instance.ixx
 	src/vulkan_wrapper/logical_device.ixx
 	src/vulkan_wrapper/pipeline.ixx
+	src/vulkan_wrapper/pipeline_layout.ixx
 	src/vulkan_wrapper/queue.ixx
 	src/vulkan_wrapper/render_pass.ixx
+	src/vulkan_wrapper/shader.ixx
 	src/vulkan_wrapper/subpass.ixx
 	src/vulkan_wrapper/swapchain.ixx
 	src/vulkan_wrapper/util.ixx
