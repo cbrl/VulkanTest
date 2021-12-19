@@ -36,6 +36,11 @@ public:
 	}
 
 	[[nodiscard]]
+	auto get_pass_info() const noexcept -> const render_pass_info& {
+		return info;
+	}
+
+	[[nodiscard]]
 	auto get_vk_render_pass() const noexcept -> const vk::raii::RenderPass& {
 		return pass;
 	}

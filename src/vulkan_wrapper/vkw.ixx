@@ -1,6 +1,7 @@
 export module vkw;
 
 export import vkw.buffer;
+export import vkw.commands;
 export import vkw.debug;
 export import vkw.descriptor;
 export import vkw.image;

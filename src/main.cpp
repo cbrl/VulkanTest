@@ -272,6 +272,52 @@ auto main(int argc, char** argv) -> int {
 	auto pipeline = vkw::graphics_pipeline{logical_device, pipeline_info, &cache};
 
 
+	// Create the command batch
+	auto batch = vkw::command_batch{logical_device, 1, *graphics_queue};
+
+	batch.add_command([&, frame = uint32_t{0}](vk::raii::CommandBuffer& buffer) mutable {
+		buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
+
+		buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline.get_vk_pipeline());
+
+		buffer.bindDescriptorSets(
+			vk::PipelineBindPoint::eGraphics,
+			*pipeline.get_pipeline_info().layout->get_vk_layout(),
+			0,
+			{*descriptor_set},
+			nullptr
+		);
+
+		buffer.bindVertexBuffers(0, {*vertex_buffer.get_vk_buffer()}, {0});
+
+		buffer.setViewport(
+			0,
+			vk::Viewport{
+				0.0f,
+				0.0f,
+				static_cast<float>(window.get_size().width),
+				static_cast<float>(window.get_size().height),
+				0.0f,
+				1.0f
+			}
+		);
+
+		buffer.setScissor(0, render_pass.get_pass_info().area_rect);
+
+		buffer.draw(std::size(coloredCubeData), 1, 0, 0);
+
+		buffer.endRenderPass();
+		buffer.end();
+
+		frame = (frame + 1) % render_pass.get_pass_info().target_attachments.size();
+	});
+
+
+	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device.get_vk_device(), vk::SemaphoreCreateInfo{}};
+	const auto [result, index] = swapchain.get_vk_swapchain().acquireNextImage(100'000'000, *image_acquired_semaphore);
+
+	batch.run_commands(0);
+
 /*
 	// Window
 	auto window = Window(AppName, vk::Extent2D{Width, Height});

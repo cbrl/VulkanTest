@@ -30,6 +30,7 @@ add_executable(${PROJECT_NAME}
 	src/utils/math.cpp
 	src/vulkan_wrapper/vkw.ixx
 	src/vulkan_wrapper/buffer.ixx
+	src/vulkan_wrapper/commands.ixx
 	src/vulkan_wrapper/debug.ixx
 	src/vulkan_wrapper/descriptor.ixx
 	src/vulkan_wrapper/image.ixx

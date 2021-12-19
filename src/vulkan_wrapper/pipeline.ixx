@@ -161,6 +161,16 @@ public:
 		pipeline_cache(cache) {
 	}
 
+	[[nodiscard]]
+	auto get_pipeline_info() const noexcept -> const graphics_pipeline_info& {
+		return info;
+	}
+
+	[[nodiscard]]
+	auto get_vk_pipeline() const noexcept -> const vk::raii::Pipeline& {
+		return vk_pipeline;
+	}
+
 private:
 
 	static auto create_pipeline(
@@ -202,8 +212,8 @@ private:
 	vk::raii::Pipeline vk_pipeline;
 	vk::raii::PipelineCache* pipeline_cache;
 	
-	vk::Viewport viewport;
-	vk::Rect2D   scissor_rect;
+	//vk::Viewport viewport;
+	//vk::Rect2D   scissor_rect;
 };
 
 } //namespace vkw
