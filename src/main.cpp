@@ -179,6 +179,13 @@ auto main(int argc, char** argv) -> int {
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device, pass_info};
 
+	const auto clear_values = std::vector<vk::ClearValue>{
+		vk::ClearValue{vk::ClearColorValue{}},
+		vk::ClearValue{vk::ClearDepthStencilValue{}}
+	};
+
+	render_pass.set_clear_values(clear_values);
+
 
 	// Vertex Buffer
 	//--------------------------------------------------------------------------------
@@ -209,6 +216,8 @@ auto main(int argc, char** argv) -> int {
 	const auto descriptor_layout = vkw::descriptor_set_layout{logical_device, bindings};
 
 	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
+
+	descriptor_set.update(logical_device, vk::DescriptorType::eUniformBuffer, std::span{&uniform_buffer.get_vk_buffer(), 1});
 
 
 	// Shaders
@@ -272,8 +281,11 @@ auto main(int argc, char** argv) -> int {
 	auto pipeline = vkw::graphics_pipeline{logical_device, pipeline_info, &cache};
 
 
+	// Setup Commands
+	//--------------------------------------------------------------------------------
+
 	// Create the command batch
-	auto batch = vkw::command_batch{logical_device, 1, *graphics_queue};
+	auto batch = vkw::command_batch{logical_device, 1, logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).family_index};
 
 	batch.add_command([&, frame = uint32_t{0}](vk::raii::CommandBuffer& buffer) mutable {
 		buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
@@ -284,7 +296,7 @@ auto main(int argc, char** argv) -> int {
 			vk::PipelineBindPoint::eGraphics,
 			*pipeline.get_pipeline_info().layout->get_vk_layout(),
 			0,
-			{*descriptor_set},
+			{*descriptor_set.get_vk_descriptor_set()},
 			nullptr
 		);
 
@@ -307,16 +319,51 @@ auto main(int argc, char** argv) -> int {
 		buffer.draw(std::size(coloredCubeData), 1, 0, 0);
 
 		buffer.endRenderPass();
-		buffer.end();
 
 		frame = (frame + 1) % render_pass.get_pass_info().target_attachments.size();
 	});
 
 
+	// Run Commands
+	//--------------------------------------------------------------------------------
 	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device.get_vk_device(), vk::SemaphoreCreateInfo{}};
-	const auto [result, index] = swapchain.get_vk_swapchain().acquireNextImage(100'000'000, *image_acquired_semaphore);
+	const auto [acq_result, image_index] = swapchain.get_vk_swapchain().acquireNextImage(100'000'000, *image_acquired_semaphore);
 
 	batch.run_commands(0);
+
+
+	// Submit and wait
+	//--------------------------------------------------------------------------------
+	const auto draw_fence  = vk::raii::Fence{logical_device.get_vk_device(), vk::FenceCreateInfo{}};
+	const auto buffers     = vkw::util::to_vector(vkw::util::as_handles(batch.get_command_buffers(0)));
+	const auto stage_flags = vk::PipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
+	const auto submit_info = vk::SubmitInfo{*image_acquired_semaphore, stage_flags, buffers};
+	logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).submit(submit_info, *draw_fence);
+
+	while (logical_device.get_vk_device().waitForFences(*draw_fence, VK_TRUE, 100'000'000) == vk::Result::eTimeout);
+
+
+	// Present
+	//--------------------------------------------------------------------------------
+    const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain.get_vk_swapchain(), image_index};
+    const auto present_result = logical_device.get_present_queue(*window.get_surface())->presentKHR(present_info);
+
+    switch (present_result) {
+		case vk::Result::eSuccess: break;
+		case vk::Result::eSuboptimalKHR: {
+			std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
+			break;
+		}
+		default: assert(false);
+    }
+
+    logical_device.get_vk_device().waitIdle();
+
+
+	// Wait for exit event
+	while (!glfwWindowShouldClose(window.get_handle())) {
+		glfwPollEvents();
+	}
 
 /*
 	// Window

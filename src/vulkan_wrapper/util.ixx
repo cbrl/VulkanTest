@@ -1,8 +1,11 @@
 module;
 
 #include <bit>
+#include <concepts>
+#include <memory>
 #include <optional>
 #include <ranges>
+#include <utility>
 #include <vector>
 
 #include <vulkan/vulkan.hpp>
@@ -28,11 +31,33 @@ constexpr auto to_vector(R&& r) -> std::vector<std::ranges::range_value_t<R>> {
 	return result;
 }
 
-/// Constructs a transform_view that views a range of vk::raii::X objects as their vk::X handle
+/// Constructs a transform_view that views a range of vk::raii::X objects as their vk::X handle. Works on ranges of value-like, pointer-like, or reference_wrapper types.
 template<std::ranges::input_range V>
 [[nodiscard]]
 auto as_handles(V&& v) {
-	return std::views::transform(v, &std::ranges::range_value_t<V>::operator*);
+	using value_type = std::ranges::range_value_t<V>;
+
+	constexpr auto value_pointer = requires {
+		requires std::is_pointer_v<value_type>;
+		std::pointer_traits<value_type>; //requires a valid specialization of std::pointer_traits<T> (Vulkan RAII types are fancy-pointer-like, so is_pointer is true for them.)
+	};
+
+	constexpr auto ref_wrapper = requires {
+		typename value_type::type;
+		requires std::is_same_v<value_type, std::reference_wrapper<typename value_type::type>>;
+	};
+
+	if constexpr (value_pointer) {
+		using element_type = std::pointer_traits<value_type>::element_type;
+		return std::views::transform(std::views::transform(v, [](auto&& n) { return *n; }), &element_type::operator*);
+	}
+	else if constexpr (ref_wrapper) {
+		using element_type = typename value_type::type;
+		return std::views::transform(std::views::transform(v, &value_type::get), &element_type::operator*);
+	}
+	else {
+		return std::views::transform(v, &value_type::operator*);
+	}
 };
 
 

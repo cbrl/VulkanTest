@@ -24,6 +24,16 @@ public:
 		buffers(create_buffers(device, command_pools)) {
 	}
 
+	[[nodiscard]]
+	auto get_buffers() const noexcept -> const std::vector<vk::raii::CommandBuffer>& {
+		return buffers;
+	}
+
+	[[nodiscard]]
+	auto get_buffer(uint32_t frame) const -> const vk::raii::CommandBuffer& {
+		return buffers.at(frame);
+	}
+
 private:
 	[[nodiscard]]
 	static auto create_buffers(
@@ -52,7 +62,7 @@ private:
 
 
 public:
-	std::function<void(vk::raii::CommandBuffer&)> command_fuc;
+	std::function<void(vk::raii::CommandBuffer&)> command_func;
 
 private:
 	std::vector<vk::raii::CommandBuffer> buffers;
@@ -66,9 +76,31 @@ public:
 		pools(create_pools(device, frame_count, queue_family)) {
 	}
 
+	[[nodiscard]]
+	auto get_vk_pools() const noexcept -> const std::vector<vk::raii::CommandPool>& {
+		return pools;
+	}
+
+	[[nodiscard]]
+	auto get_vk_pool(uint32_t frame) const -> const vk::raii::CommandPool& {
+		return pools.at(frame);
+	}
+
+	[[nodiscard]]
+	auto get_command_buffers(uint32_t frame) const -> std::vector<std::reference_wrapper<const vk::raii::CommandBuffer>> {
+		auto result = std::vector<std::reference_wrapper<const vk::raii::CommandBuffer>>{};
+		result.reserve(commands.size());
+
+		for (const auto& cmd : commands) {
+			result.push_back(cmd.get_buffer(frame));
+		}
+
+		return result;
+	}
+
 	auto add_command(const std::function<void(vk::raii::CommandBuffer&)>& func) -> void {
 		assert(func != nullptr);
-		commands.emplace_back(device.get(), pools).command_fuc = func;
+		commands.emplace_back(device.get(), pools).command_func = func;
 	}
 
 	// TODO: remove command
@@ -82,7 +114,7 @@ public:
 			const auto begin_info = vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 			buffer.begin(begin_info);
 
-			cmd.command_fuc(buffer);
+			cmd.command_func(buffer);
 
 			buffer.end();
 		}

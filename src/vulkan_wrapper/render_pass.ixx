@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <functional>
 #include <iterator>
 #include <ranges>
@@ -56,6 +57,8 @@ public:
 
 	[[nodiscard]]
 	auto get_render_pass_begin_info(uint32_t frame) -> vk::RenderPassBeginInfo {
+		assert(clear_values.size() >= info.target_attachments.size());
+
 		return vk::RenderPassBeginInfo{
 			*pass,
 			*framebuffers[frame],
@@ -86,6 +89,8 @@ private:
 		const vk::raii::RenderPass& pass,
 		const render_pass_info& info
 	) -> std::vector<vk::raii::Framebuffer> {
+
+		assert(info.target_attachments.size() == info.attachment_descriptions.size());
 
 		auto framebuffers = std::vector<vk::raii::Framebuffer>{};
 		framebuffers.reserve(info.target_attachments.size());
