@@ -138,10 +138,10 @@ auto main(int argc, char** argv) -> int {
 
 	pass_info.area_rect = vk::Rect2D{{0, 0}, window.get_size()};
 
-	auto graphics_subpass = vkw::subpass{};
-	graphics_subpass.add_color_attachment(vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal});
-	graphics_subpass.set_depth_stencil_attachment(vk::AttachmentReference{1, vk::ImageLayout::eDepthStencilAttachmentOptimal});
-	pass_info.subpasses.push_back(graphics_subpass);
+	pass_info.target_attachments = {
+		{*swapchain.get_image_views()[0], *depth_buffer.get_vk_image_view()},
+		{*swapchain.get_image_views()[1], *depth_buffer.get_vk_image_view()},
+	};
 
 	pass_info.attachment_descriptions.push_back( //color attachment
 		vk::AttachmentDescription{
@@ -171,17 +171,19 @@ auto main(int argc, char** argv) -> int {
 		}
 	);
 
-	pass_info.target_attachments = {
-		{*swapchain.get_image_views()[0], *depth_buffer.get_vk_image_view()},
-		{*swapchain.get_image_views()[1], *depth_buffer.get_vk_image_view()},
-	};
+	auto graphics_subpass = vkw::subpass{};
+	graphics_subpass.set_bind_point(vk::PipelineBindPoint::eGraphics);
+	graphics_subpass.set_color_attachment(vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal});
+	graphics_subpass.set_depth_stencil_attachment(vk::AttachmentReference{1, vk::ImageLayout::eDepthStencilAttachmentOptimal});
+	pass_info.subpasses.push_back(graphics_subpass);
+
 
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device, pass_info};
 
-	const auto clear_values = std::vector<vk::ClearValue>{
-		vk::ClearValue{vk::ClearColorValue{}},
-		vk::ClearValue{vk::ClearDepthStencilValue{}}
+	const auto clear_values = std::vector{
+		vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}},
+		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}
 	};
 
 	render_pass.set_clear_values(clear_values);
@@ -254,9 +256,22 @@ auto main(int argc, char** argv) -> int {
 
 	auto pipeline_info = vkw::graphics_pipeline_info{};
 
+	pipeline_info.shader_stages = {std::cref(vertex_stage), std::cref(fragment_stage)};
 	pipeline_info.layout        = &pipeline_layout;
 	pipeline_info.pass          = &render_pass;
-	pipeline_info.shader_stages = {std::cref(vertex_stage), std::cref(fragment_stage)};
+
+	pipeline_info.raster_state.frontFace = vk::FrontFace::eClockwise;
+
+	pipeline_info.depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo{
+		vk::PipelineDepthStencilStateCreateFlags{},
+		VK_TRUE,
+		VK_TRUE,
+		vk::CompareOp::eLessOrEqual,
+		VK_FALSE,
+		VK_FALSE,
+		vk::StencilOpState{vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::CompareOp::eAlways},
+		vk::StencilOpState{vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::StencilOp::eKeep, vk::CompareOp::eAlways}
+	};
 
 	pipeline_info.add_vertex_input_binding(vk::VertexInputBindingDescription{0, static_cast<uint32_t>(sizeof(coloredCubeData[0]))});
 	pipeline_info.add_vertex_input_attribute(vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0});
@@ -276,6 +291,7 @@ auto main(int argc, char** argv) -> int {
 			| vk::ColorComponentFlagBits::eA
 		}
 	);
+	
 
 	// Create the pipeline
 	auto pipeline = vkw::graphics_pipeline{logical_device, pipeline_info, &cache};
@@ -320,7 +336,7 @@ auto main(int argc, char** argv) -> int {
 
 		buffer.endRenderPass();
 
-		frame = (frame + 1) % render_pass.get_pass_info().target_attachments.size();
+		frame = (frame + 1) % render_pass.get_vk_framebuffers().size();
 	});
 
 
