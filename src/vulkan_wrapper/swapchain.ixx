@@ -27,7 +27,7 @@ public:
 		vk::ImageUsageFlags usage,
 		vk::Extent2D size,
 		bool vsync,
-		std::vector<uint32_t> shared_queues = {}
+		const std::vector<uint32_t>& shared_queues = {}
 	) -> void {
 		this->format        = format;
 		this->usage         = usage;

@@ -7,10 +7,11 @@ module;
 
 export module vkw.subpass;
 
+namespace vkw {
 
-export namespace vkw {
+class subpass_base {
+	friend class subpass;
 
-class subpass {
 public:
 	[[nodiscard]]
 	auto get_description() const -> const vk::SubpassDescription& {
@@ -87,7 +88,7 @@ public:
 	//--------------------------------------------------------------------------------
 	auto set_depth_stencil_attachment(const vk::AttachmentReference& attachment) -> void {
 		depth_stencil_attachment = attachment;
-		description.pDepthStencilAttachment = &depth_stencil_attachment;
+		update_depth_stencil_attachment();
 	}
 
 
@@ -112,22 +113,23 @@ public:
 private:
 
 	auto update_color_attachments() noexcept -> void {
-		description.colorAttachmentCount = static_cast<uint32_t>(color_attachments.size());
-		description.pColorAttachments    = color_attachments.data();
+		description.setColorAttachments(color_attachments);
+	}
+
+	auto update_depth_stencil_attachment() noexcept -> void {
+		description.pDepthStencilAttachment = &depth_stencil_attachment;
 	}
 
 	auto update_input_attachments() noexcept -> void {
-		description.inputAttachmentCount = static_cast<uint32_t>(input_attachments.size());
-		description.pInputAttachments    = input_attachments.data();
+		description.setInputAttachments(input_attachments);
 	}
 
 	auto update_resolve_attachments() noexcept -> void {
-		description.pResolveAttachments = resolve_attachments.data();
+		description.setResolveAttachments(resolve_attachments);
 	}
 
 	auto update_preserve_attachments() noexcept -> void {
-		description.preserveAttachmentCount = static_cast<uint32_t>(preserve_attachments.size());
-		description.pPreserveAttachments    = preserve_attachments.data();
+		description.setPreserveAttachments(preserve_attachments);
 
 	}
 
@@ -138,6 +140,38 @@ private:
 	std::vector<vk::AttachmentReference> resolve_attachments;
 	vk::AttachmentReference depth_stencil_attachment = {};
 	std::vector<uint32_t> preserve_attachments;
+};
+
+
+export class subpass : public subpass_base {
+public:
+	subpass() = default;
+
+	subpass(const subpass& other) : subpass_base(other) {
+		update_color_attachments();
+		update_depth_stencil_attachment();
+		update_input_attachments();
+		update_resolve_attachments();
+		update_preserve_attachments();
+	}
+
+	// The default move constrctor is fine, because the destination vectors will take ownership of the
+	// moved-from vectors' data pointers, instead of copying the data to another array.
+	subpass(subpass&&) noexcept = default;
+
+	~subpass() = default;
+
+	auto operator=(const subpass& other) noexcept -> subpass& {
+		subpass_base::operator=(other);
+		update_color_attachments();
+		update_depth_stencil_attachment();
+		update_input_attachments();
+		update_resolve_attachments();
+		update_preserve_attachments();
+		return *this;
+	}
+
+	auto operator=(subpass&&) noexcept -> subpass& = default;
 };
 
 } //namespace vkw

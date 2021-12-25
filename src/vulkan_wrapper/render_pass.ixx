@@ -46,6 +46,11 @@ public:
 		return pass;
 	}
 
+	[[nodiscard]]
+	auto get_vk_framebuffers() const noexcept -> const std::vector<vk::raii::Framebuffer>& {
+		return framebuffers;
+	}
+
 	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
 		clear_values = values;
 	}

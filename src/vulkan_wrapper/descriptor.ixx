@@ -75,7 +75,7 @@ public:
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			binding_offset++,
+			binding_offset,
 			0,
 			type,
 			{},
@@ -96,7 +96,7 @@ public:
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			binding_offset++,
+			binding_offset,
 			0,
 			type,
 			{},

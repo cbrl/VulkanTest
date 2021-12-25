@@ -19,10 +19,15 @@ import vkw.shader;
 import vkw.util;
 
 
+namespace vkw {
+
 // This base class exists so that the copy operators don't need to be completely re-implemented.
 // Only the pointers to the bindings/attributes/attachments need to be updated on a copy, so the
 // final derived class defines a custom copy operator that takes care of that.
-struct graphics_pipeline_info_base {
+class graphics_pipeline_info_base {
+	friend class graphics_pipeline_info;
+
+public:
 	graphics_pipeline_info_base() {
 		input_assembly_state.topology = vk::PrimitiveTopology::eTriangleList;
 
@@ -105,7 +110,7 @@ struct graphics_pipeline_info_base {
 	const vkw::render_pass* pass = nullptr;
 	uint32_t subpass = 0;
 
-protected:
+private:
 
 	std::vector<vk::VertexInputBindingDescription>     vertex_input_bindings;
 	std::vector<vk::VertexInputAttributeDescription>   vertex_input_attributes;
@@ -114,9 +119,8 @@ protected:
 };
 
 
-export namespace vkw {
-
-struct graphics_pipeline_info : public graphics_pipeline_info_base {
+export class graphics_pipeline_info : public graphics_pipeline_info_base {
+public:
 	graphics_pipeline_info() = default;
 
 	// This custom copy constructor maintains the correct data pointers in the state create info structs
@@ -149,7 +153,7 @@ private:
 };
 
 
-class graphics_pipeline {
+export class graphics_pipeline {
 public:
 	graphics_pipeline(
 		const logical_device& device,

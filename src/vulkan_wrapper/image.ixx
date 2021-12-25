@@ -11,21 +11,21 @@ import vkw.util;
 
 export namespace vkw {
 
+struct image_info {
+	vk::ImageType           type              = vk::ImageType::e2D;
+	vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
+	vk::Extent3D            extent;
+	vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
+	vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
+	vk::ImageLayout         initial_layout    = vk::ImageLayout::eUndefined;
+	vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+	vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
+	vk::ComponentMapping    component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+	vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
+};
+
 class image {
 public:
-	struct image_info {
-		vk::ImageType           type              = vk::ImageType::e2D;
-		vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
-		vk::Extent3D            extent;
-		vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
-		vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
-		vk::ImageLayout         initial_layout    = vk::ImageLayout::eUndefined;
-		vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
-		vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
-		vk::ComponentMapping    component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-		vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
-	};
-
 	image(const logical_device& device, const image_info& info) :
 		info(info),
 		vk_image(create_image(device, info)),
@@ -112,7 +112,7 @@ namespace util {
 auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
 	return image{
 		device,
-		image::image_info{
+		image_info{
 			.format = format,
 			.extent = vk::Extent3D{extent, 1},
 			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
