@@ -28,11 +28,10 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 	const auto app_info = vkw::app_info{};
 
-	auto instance_info = vkw::instance_info{
+	const auto instance_info = vkw::instance_info{
 		.layers = {},
 		.extensions = vkw::util::get_surface_extensions()
 	};
-	instance_info.extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
 	const auto debug_info = vkw::debug_info{
 		.utils = true,
