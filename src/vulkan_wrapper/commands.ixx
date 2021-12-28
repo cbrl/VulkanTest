@@ -73,7 +73,8 @@ class command_batch {
 public:
 	command_batch(const logical_device& device, uint32_t frame_count, uint32_t queue_family) :
 		device(device),
-		pools(create_pools(device, frame_count, queue_family)) {
+		pools(create_pools(device, frame_count, queue_family)),
+		queue_family(queue_family) {
 	}
 
 	[[nodiscard]]
@@ -84,6 +85,11 @@ public:
 	[[nodiscard]]
 	auto get_vk_pool(uint32_t frame) const -> const vk::raii::CommandPool& {
 		return pools.at(frame);
+	}
+
+	[[nodiscard]]
+	auto get_queue_family() const noexcept -> uint32_t {
+		return queue_family;
 	}
 
 	[[nodiscard]]
@@ -146,6 +152,7 @@ private:
 	std::reference_wrapper<const logical_device> device;
 	std::vector<vk::raii::CommandPool> pools;
 	std::vector<command> commands;
+	uint32_t queue_family;
 };
 
 } //namespace vkw
