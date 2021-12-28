@@ -68,6 +68,10 @@ public:
 	virtual auto set_window_position(vk::Offset2D position) -> void = 0;
 
 	[[nodiscard]]
+	virtual auto get_frame_rect() const -> vk::Rect2D = 0;
+	virtual auto set_frame_rect(vk::Rect2D rect) -> void = 0;
+
+	[[nodiscard]]
 	virtual auto get_window_rect() const -> vk::Rect2D = 0;
 	virtual auto set_window_rect(vk::Rect2D rect) -> void = 0;
 
@@ -214,6 +218,19 @@ public:
 		glfwSetWindowPos(handle, position.x, position.y);
 	}
 
+	[[nodiscard]]
+	virtual auto get_frame_rect() const -> vk::Rect2D override {
+		int left   = 0;
+		int top    = 0;
+		int right  = 0;
+		int bottom = 0;
+		glfwGetWindowFrameSize(handle, &left, &top, &right, &bottom);
+		return {vk::Offset2D{left, top}, vk::Extent2D{right - left, bottom - top}};
+	}
+	virtual auto set_frame_rect(vk::Rect2D rect) -> void override {
+		set_frame_position(rect.offset);
+		set_frame_size(rect.extent);
+	}
 
 	[[nodiscard]]
 	virtual auto get_window_rect() const -> vk::Rect2D override {
