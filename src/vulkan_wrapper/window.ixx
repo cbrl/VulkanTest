@@ -35,8 +35,13 @@ public:
 	using event_handler = std::function<void(window&, event, uint64_t, void*)>;
 
 	window() = default;
+	window(const window&) = delete;
+	window(window&&) noexcept = default;
 
 	virtual ~window() = default;
+
+	auto operator=(const window&) -> window = delete;
+	auto operator=(window&&) noexcept -> window& = default;
 
 	// Process any events or messages (e.g. input events)
 	virtual auto update() -> void = 0;
@@ -122,9 +127,26 @@ class glfw_window : public window {
 	static inline size_t window_count{0};
 
 public:
-	glfw_window(const std::string& title, const vk::Extent2D& size, const vk::raii::Instance& instance, GLFWmonitor* monitor = nullptr) :
-		handle(create_handle(title, size, monitor)),
+	glfw_window(
+		const std::string& title,
+		const vk::Extent2D& size,
+		const vk::raii::Instance& instance,
+		const std::vector<std::pair<int, int>>& int_hints = {},
+		const std::vector<std::pair<int, std::string>>& string_hints = {},
+		GLFWmonitor* monitor = nullptr
+	) :
+		handle(create_handle(title, size, int_hints, string_hints, monitor)),
 		surface(create_surface(instance, handle)) {
+		glfwMakeContextCurrent(handle);
+
+		glfwSetWindowUserPointer(handle, this);
+		glfwSetWindowPosCallback(handle, &glfw_window::window_pos_callback);
+		glfwSetFramebufferSizeCallback(handle, &glfw_window::window_size_callback);
+		glfwSetWindowIconifyCallback(handle, &glfw_window::window_minimize_callback);
+		glfwSetWindowMaximizeCallback(handle, &glfw_window::window_maximize_callback);
+		glfwSetWindowFocusCallback(handle, &glfw_window::window_focus_callback);
+		glfwSetWindowCloseCallback(handle, &glfw_window::window_close_callback);
+		glfwSetKeyCallback(handle, &glfw_window::key_callback);
 	}
 
 	~glfw_window() {
@@ -225,7 +247,7 @@ public:
 		int right  = 0;
 		int bottom = 0;
 		glfwGetWindowFrameSize(handle, &left, &top, &right, &bottom);
-		return {vk::Offset2D{left, top}, vk::Extent2D{right - left, bottom - top}};
+		return {vk::Offset2D{left, top}, vk::Extent2D{static_cast<uint32_t>(right - left), static_cast<uint32_t>(bottom - top)}};
 	}
 	virtual auto set_frame_rect(vk::Rect2D rect) -> void override {
 		set_frame_position(rect.offset);
@@ -307,36 +329,43 @@ public:
 private:
 
 	[[nodiscard]]
-	static auto getClassPointer(GLFWwindow* handle) -> glfw_window* {
+	static auto get_class_pointer(GLFWwindow* handle) -> glfw_window* {
 		return static_cast<glfw_window*>(glfwGetWindowUserPointer(handle));
 	}
 
-	static auto windowPosCallback(GLFWwindow* handle, int x, int y) -> void {
-		getClassPointer(handle)->proc_event(event::move, 0, nullptr);
+	static auto window_pos_callback(GLFWwindow* handle, int x, int y) -> void {
+		(void)x;
+		(void)y;
+		get_class_pointer(handle)->proc_event(event::move, 0, nullptr);
 	}
 
-	static auto windowSizeCallback(GLFWwindow* handle, int width, int height) -> void {
-		getClassPointer(handle)->proc_event(event::resize, 0, nullptr);
+	static auto window_size_callback(GLFWwindow* handle, int width, int height) -> void {
+		(void)width;
+		(void)height;
+		get_class_pointer(handle)->proc_event(event::resize, 0, nullptr);
 	}
 
-	static auto windowMinimizeCallback(GLFWwindow* handle, int minimized) -> void {
-		getClassPointer(handle)->proc_event(event::minimize, 0, nullptr);
+	static auto window_minimize_callback(GLFWwindow* handle, int minimized) -> void {
+		(void)minimized;
+		get_class_pointer(handle)->proc_event(event::minimize, 0, nullptr);
 	}
 
-	static auto windowMaximizeCallback(GLFWwindow* handle, int maximized) -> void {
-		getClassPointer(handle)->proc_event(event::maximize, 0, nullptr);
+	static auto window_maximize_callback(GLFWwindow* handle, int maximized) -> void {
+		(void)maximized;
+		get_class_pointer(handle)->proc_event(event::maximize, 0, nullptr);
 	}
 
-	static auto windowFocusCallback(GLFWwindow* handle, int focused) -> void {
-		getClassPointer(handle)->proc_event(event::focus, 0, nullptr);
+	static auto window_focus_callback(GLFWwindow* handle, int focused) -> void {
+		(void)focused;
+		get_class_pointer(handle)->proc_event(event::focus, 0, nullptr);
 	}
 
-	static auto windowCloseCallback(GLFWwindow* handle) -> void {
-		getClassPointer(handle)->proc_event(event::close, 0, nullptr);
+	static auto window_close_callback(GLFWwindow* handle) -> void {
+		get_class_pointer(handle)->proc_event(event::close, 0, nullptr);
 	}
 
-	static auto keyCallback(GLFWwindow* handle, int key, int scancode, int action, int mods) -> void {
-		auto* window_cls = getClassPointer(handle);
+	static auto key_callback(GLFWwindow* handle, int key, int scancode, int action, int mods) -> void {
+		auto* window_cls = get_class_pointer(handle);
 
 		if (action == GLFW_PRESS) {
 			window_cls->proc_event(event::key_down, static_cast<uint64_t>(key), nullptr);
@@ -347,11 +376,24 @@ private:
 	}
 
 	[[nodiscard]]
-	static auto create_handle(const std::string& title, const vk::Extent2D& size, GLFWmonitor* monitor = nullptr) -> GLFWwindow* {
+	static auto create_handle(
+		const std::string& title,
+		const vk::Extent2D& size, 
+		const std::vector<std::pair<int, int>>& int_hints = {},
+		const std::vector<std::pair<int, std::string>>& string_hints = {},
+		GLFWmonitor* monitor = nullptr
+	) -> GLFWwindow* {
 		init_glfw();
 
+		// This hint is required for Vulkan usage
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+		for (const auto& pair : int_hints) {
+			glfwWindowHint(pair.first, pair.second);
+		}
+		for (const auto& pair : string_hints) {
+			glfwWindowHintString(pair.first, pair.second.c_str());
+		}
 
 		auto* handle = glfwCreateWindow(size.width, size.height, title.c_str(), monitor, nullptr);
 		if (not handle) {

@@ -45,16 +45,6 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_size() -> vk::Extent2D {
-		return size;
-	}
-
-	[[nodiscard]]
-	auto get_format() -> vk::SurfaceFormatKHR {
-		return format;
-	}
-
-	[[nodiscard]]
 	auto get_vk_swapchain() -> vk::raii::SwapchainKHR& {
 		return *vk_swapchain;
 	}
@@ -62,6 +52,16 @@ public:
 	[[nodiscard]]
 	auto get_vk_swapchain() const -> const vk::raii::SwapchainKHR& {
 		return *vk_swapchain;
+	}
+
+	[[nodiscard]]
+	auto get_size() -> vk::Extent2D {
+		return size;
+	}
+
+	[[nodiscard]]
+	auto get_format() -> vk::SurfaceFormatKHR {
+		return format;
 	}
 
 	[[nodiscard]]

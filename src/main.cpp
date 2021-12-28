@@ -45,7 +45,18 @@ auto main(int argc, char** argv) -> int {
 
 	// Window
 	//--------------------------------------------------------------------------------
-	auto window = vkw::glfw_window{"Vulkan Window", {1280, 1024}, instance.get_vk_instance()};
+	auto window = vkw::glfw_window{
+		"Vulkan Window",
+		{1280, 1024},
+		instance.get_vk_instance(),
+		{{GLFW_RESIZABLE, GLFW_FALSE}}
+	};
+
+	window.add_event_handler([](vkw::window& win, vkw::window::event e, uint64_t param, void*) {
+		if ((e == vkw::window::event::key_down) && (param == GLFW_KEY_ESCAPE)) {
+			win.set_should_close(true);
+		}
+	});
 
 
 	// Logical Device
