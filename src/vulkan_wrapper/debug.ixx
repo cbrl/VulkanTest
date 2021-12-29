@@ -1,5 +1,6 @@
 module;
 
+#include <format>
 #include <iostream>
 #include <ranges>
 
@@ -11,10 +12,10 @@ export module vkw.debug;
 export namespace vkw::debug {
 
 VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT              messageTypes,
-	const VkDebugUtilsMessengerCallbackDataEXT*  pCallbackData,
-	void*                                        pUserData
+	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void*                                       pUserData
 ) -> VkBool32 {
 	(void)pUserData;
 
@@ -29,33 +30,34 @@ VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 	}
 #endif
 
-	std::cerr << vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(messageSeverity)) << ": "
-	          << vk::to_string(static_cast<vk::DebugUtilsMessageTypeFlagsEXT>(messageTypes)) << ":\n";
-	std::cerr << "\tmessageIDName   = <" << pCallbackData->pMessageIdName << ">\n";
-	std::cerr << "\tmessageIdNumber = "  << pCallbackData->messageIdNumber << "\n";
-	std::cerr << "\tmessage         = <" << pCallbackData->pMessage << ">\n";
+	std::cerr << std::format("{}: {}:\n",
+		vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(messageSeverity)),
+		vk::to_string(static_cast<vk::DebugUtilsMessageTypeFlagsEXT>(messageTypes))
+	);
+	std::cerr << std::format("\tmessageIDName   = <{}>\n", pCallbackData->pMessageIdName);
+	std::cerr << std::format("\tmessageIdNumber = {}\n" , pCallbackData->messageIdNumber);
+	std::cerr << std::format("\tmessage         = <{}>\n", pCallbackData->pMessage);
 
 	if (pCallbackData->queueLabelCount > 0) {
 		std::cerr << "\tQueue Labels:\n";
 		for (uint8_t i = 0; i < pCallbackData->queueLabelCount; i++) {
-			std::cerr << "\t\tlabelName = <" << pCallbackData->pQueueLabels[i].pLabelName << ">\n";
+			std::cerr << std::format("\t\tlabelName = <{}>\n", pCallbackData->pQueueLabels[i].pLabelName);
 		}
 	}
 	if (pCallbackData->cmdBufLabelCount > 0) {
 		std::cerr << "\tCommandBuffer Labels:\n";
 		for (uint8_t i = 0; i < pCallbackData->cmdBufLabelCount; i++) {
-			std::cerr << "\t\tlabelName = <" << pCallbackData->pCmdBufLabels[i].pLabelName << ">\n";
+			std::cerr << std::format("\t\tlabelName = <{}>\n", pCallbackData->pCmdBufLabels[i].pLabelName);
 		}
 	}
 	if (pCallbackData->objectCount > 0) {
 		std::cerr << "\tObjects:\n";
 		for (uint8_t i = 0; i < pCallbackData->objectCount; i++) {
-			std::cerr << "\t\tObject " << i << "\n";
-			std::cerr << "\t\t\tobjectType   = "
-			          << vk::to_string(static_cast<vk::ObjectType>(pCallbackData->pObjects[i].objectType)) << "\n";
-			std::cerr << "\t\t\tobjectHandle = " << pCallbackData->pObjects[i].objectHandle << "\n";
+			std::cerr << std::format("\t\tObject {}\n", i);
+			std::cerr << std::format("\t\t\tobjectType   = {}\n", vk::to_string(static_cast<vk::ObjectType>(pCallbackData->pObjects[i].objectType)));
+			std::cerr << std::format("\t\t\tobjectHandle = {}\n", pCallbackData->pObjects[i].objectHandle);
 			if (pCallbackData->pObjects[i].pObjectName) {
-				std::cerr << "\t\t\tobjectName   = <" << pCallbackData->pObjects[i].pObjectName << ">\n";
+				std::cerr << std::format("\t\t\tobjectName   = <{}>\n", pCallbackData->pObjects[i].pObjectName);
 			}
 		}
 	}
@@ -67,7 +69,7 @@ VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
 	if (layer_properties.empty()) {
 		std::cout << "No layer properties" << std::endl;
-		throw std::runtime_error("No layer properties");
+		throw std::runtime_error{"No layer properties"};
 	}
 
 	const auto is_invalid = [&](const char* layer) {
@@ -87,7 +89,7 @@ auto validate_layers(const std::vector<const char*>& layers, const std::vector<v
 	}
 
 	if (invalid_layers) {
-		throw std::runtime_error("Invalid layers");
+		throw std::runtime_error{"Invalid layers"};
 	}
 }
 
@@ -95,7 +97,7 @@ auto validate_layers(const std::vector<const char*>& layers, const std::vector<v
 auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
 	if (ext_properties.empty()) {
 		std::cout << "No extension properties" << std::endl;
-		throw std::runtime_error("No extension properties");
+		throw std::runtime_error{"No extension properties"};
 	}
 
 	const auto is_invalid = [&](const char* extension) {
@@ -115,7 +117,7 @@ auto validate_extensions(const std::vector<const char*>& extensions, const std::
 	}
 
 	if (invalid_extensions) {
-		throw std::runtime_error("Invalid extensions");
+		throw std::runtime_error{"Invalid extensions"};
 	}
 }
 

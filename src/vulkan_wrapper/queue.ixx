@@ -2,6 +2,7 @@ module;
 
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <iostream>
 #include <optional>
 #include <ranges>
@@ -153,7 +154,7 @@ namespace debug {
 auto validate_queues(std::span<const queue_family_info> queue_family_info_list, const std::vector<vk::QueueFamilyProperties>& queue_family_properties) -> void {
 	if (queue_family_properties.empty()) {
 		std::cout << "No queue family properties" << std::endl;
-		throw std::runtime_error("No queue family properties");
+		throw std::runtime_error{"No queue family properties"};
 	}
 
 	bool invalid_queues = false;
@@ -162,27 +163,27 @@ auto validate_queues(std::span<const queue_family_info> queue_family_info_list, 
 
 		if (family.family_idx >= queue_family_properties.size()) {
 			std::cout << "Queue family index out of range:\n"
-			          << "  Index = " << family.family_idx << '\n'
-			          << "  Limit = " << (queue_family_properties.size() - 1) << '\n';
+			          << std::format("\tIndex = {}\n", family.family_idx)
+			          << std::format("\tLimit = {}\n", queue_family_properties.size() - 1);
 			invalid_queues = true;
 		}
 
 		if (family.queues.empty()) {
-			std::cout << "Empty queue list for queue family " << family.family_idx << '\n';
+			std::cout << std::format("Empty queue list for queue family {}\n", family.family_idx);
 			invalid_queues = true;
 		}
 
 		if (family.queues.size() > property.queueCount) {
-			std::cout << "Too many queues specified for family " << family.family_idx << ":\n"
-			          << "  Total = " << family.queues.size() << '\n'
-			          << "  Limit = " << property.queueCount << '\n';
+			std::cout << std::format("Too many queues specified for family {}:\n", family.family_idx)
+			          << std::format("\tTotal = {}\n", family.queues.size())
+			          << std::format("\tLimit = {}\n", property.queueCount);
 			invalid_queues = true;
 		}
 
 		if ((property.queueFlags & family.flags) != family.flags) {
-			std::cout << "Queue family " << family.family_idx << " does not support the requested flags\n"
-			          << "  Requested: " << vk::to_string(family.flags) << '\n'
-			          << "  Available: " << vk::to_string(property.queueFlags) << '\n';
+			std::cout << std::format("Queue family {} does not support the requested flags\n", family.family_idx)
+			          << std::format("\tRequested: {}\n", vk::to_string(family.flags))
+			          << std::format("\tAvailable: {}\n", vk::to_string(property.queueFlags));
 			invalid_queues = true;
 		}
 
@@ -190,7 +191,7 @@ auto validate_queues(std::span<const queue_family_info> queue_family_info_list, 
 			const auto& queue = family.queues[idx];
 
 			if ((queue.priority < 0) || (queue.priority > 1)) {
-				std::cout << "Invalid priority for queue " << idx << " in family " << family.family_idx << ": " << queue.priority << '\n';
+				std::cout << std::format("Invalid priority for queue {} in family {}: {}\n", idx, family.family_idx, queue.priority);
 				invalid_queues = true;
 			}
 		}

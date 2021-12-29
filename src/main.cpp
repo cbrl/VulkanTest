@@ -364,7 +364,7 @@ auto main(int argc, char** argv) -> int {
 	switch (present_result) {
 		case vk::Result::eSuccess: break;
 		case vk::Result::eSuboptimalKHR: {
-			std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
+			std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR\n";
 			break;
 		}
 		default: assert(false);
