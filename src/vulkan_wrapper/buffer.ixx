@@ -114,11 +114,11 @@ public:
 	}
 
 /*
-	auto upload(command_batch& batch, const T& data) const -> void {
-		upload(batch, std::span{&data, 1});
+	auto stage_upload(command_batch& batch, const T& data) const -> void {
+		stage_upload(batch, std::span{&data, 1});
 	}
 
-	auto upload(command_batch& batch, std::span<const T> data) const -> void {
+	auto stage_upload(command_batch& batch, std::span<const T> data) const -> void {
 		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
 		assert(data.size() <= count);

@@ -353,7 +353,7 @@ auto main(int argc, char** argv) -> int {
 	const auto submit_info = vk::SubmitInfo{*image_acquired_semaphore, stage_flags, buffers};
 	logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).submit(submit_info, *draw_fence);
 
-	while (logical_device.get_vk_device().waitForFences(*draw_fence, VK_TRUE, 100'000'000) == vk::Result::eTimeout);
+	logical_device.get_vk_device().waitForFences(*draw_fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 
 	// Present

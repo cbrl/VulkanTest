@@ -4,6 +4,7 @@ module;
 #include <ranges>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -54,7 +55,17 @@ private:
 
 
 class descriptor_set {
+	template<typename T>
+	struct write_descriptor_set {
+		vk::DescriptorType descriptor_type;
+		std::vector<std::reference_wrapper<const T>> data;
+	};
+
 public:
+	//using write_image_set        = write_descriptor_set<texture>;
+	using write_buffer_set       = write_descriptor_set<vk::raii::Buffer>;
+	using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
+
 	descriptor_set(vk::raii::DescriptorSet&& handle) : handle(std::move(handle)) {
 	}
 
@@ -62,6 +73,33 @@ public:
 	auto get_vk_descriptor_set() const noexcept -> const vk::raii::DescriptorSet& {
 		return handle;
 	}
+
+	/*
+	auto update(
+		const logical_device& device,
+		vk::DescriptorType type,
+		std::span<const texture> textures,
+		uint32_t binding_offset = 0
+	) -> void {
+		const auto texture_infos = vkw::util::to_vector(std::views::transform(textures, [](auto&& tex) {
+			return vk::DescriptorImageInfo{
+				*tex.sampler,
+				*tex.image_data->image_view,
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			};
+		}));
+
+		const auto write_descriptor_set = vk::WriteDescriptorSet{
+			*handle,
+			binding_offset,
+			0,
+			type,
+			texture_infos,
+		};
+
+		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+	}
+	*/
 
 	auto update(
 		const logical_device& device,
@@ -91,7 +129,6 @@ public:
 		std::span<const vk::raii::BufferView> buffer_views,
 		uint32_t binding_offset = 0
 	) -> void {
-
 		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffer_views));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
@@ -109,43 +146,52 @@ public:
 
 	auto update(
 		const logical_device& device,
-		const std::vector<std::tuple<vk::DescriptorType, const vk::raii::Buffer*, const vk::raii::BufferView* /*, const texture* */>>& buffer_data,
+		const std::vector<std::variant</*write_image_set, */write_buffer_set, write_texel_buffer_set>>& buffer_data,
 		uint32_t binding_offset = 0
 	) -> void {
-		auto buffer_infos = std::vector<vk::DescriptorBufferInfo>{};
-		buffer_infos.reserve(buffer_data.size());
-
-		//auto image_infos = std::vector<vk::DescriptorImageInfo>{};
-		//image_infos.reserve(texture_data.size());
+		//auto image_infos        = std::vector<std::vector<vk::DescriptorImageInfo>>{};
+		auto buffer_infos       = std::vector<std::vector<vk::DescriptorBufferInfo>>{};
+		auto texel_buffer_infos = std::vector<std::vector<vk::BufferView>>{};
 
 		auto write_descriptor_sets = std::vector<vk::WriteDescriptorSet>{};
 		write_descriptor_sets.reserve(buffer_data.size());
 
-		for (const auto& [descriptor_type, buffer, buffer_view/*, texture*/] : buffer_data) {
-			if (buffer) {
-				buffer_infos.push_back(vk::DescriptorBufferInfo{**buffer, 0, VK_WHOLE_SIZE});
-			}
+		for (const auto& write_set : buffer_data) {
+			auto& set_info = write_descriptor_sets.emplace_back(vk::WriteDescriptorSet{*handle, binding_offset++, 0});
 
 			/*
-			if (texture) {
-				image_infos.push_back(vk::DescriptorImageInfo{
-					*tex.sampler,
-					*tex.image_data->image_view,
-					vk::ImageLayout::eShaderReadOnlyOptimal
-				});
-			}
-			*/
+			if (const auto* image_set = std::get_if<write_image_set>(&write_set)) {
+				set_info.setDescriptorType(image_set->descriptor_type);
 
-			write_descriptor_sets.push_back(vk::WriteDescriptorSet{
-				*handle,
-				binding_offset++,
-				0,
-				1,
-				descriptor_type,
-				nullptr, //texture ? &image_infos.back() : nullptr,
-				buffer ? &buffer_infos.back() : nullptr,
-				buffer_view ? &(**buffer_view) : nullptr
-			});
+				auto& info_vec = image_infos.emplace_back();
+				for (const auto& image : image_set->data) {
+					info_vec.push_back(vk::DescriptorImageInfo{
+						*image.sampler,
+						*image.image_data->image_view,
+						vk::ImageLayout::eShaderReadOnlyOptimal
+					});
+				}
+
+				set_info.setImageInfo(info_vec);
+			}
+			else */if (const auto* buffer_set = std::get_if<write_buffer_set>(&write_set)) {
+				set_info.setDescriptorType(buffer_set->descriptor_type);
+
+				auto& info_vec = buffer_infos.emplace_back();
+				for (const auto& buffer : buffer_set->data) {
+					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get(), 0, VK_WHOLE_SIZE});
+				}
+
+				set_info.setBufferInfo(info_vec);
+			}
+			else if (const auto* texel_buffer_set = std::get_if<write_texel_buffer_set>(&write_set)) {
+				set_info.setDescriptorType(texel_buffer_set->descriptor_type);
+
+				auto& view_vec = texel_buffer_infos.emplace_back();
+				view_vec = vkw::util::to_vector(vkw::util::as_handles(texel_buffer_set->data));
+
+				set_info.setTexelBufferView(view_vec);
+			}
 		}
 
 		device.get_vk_device().updateDescriptorSets(write_descriptor_sets, nullptr);
