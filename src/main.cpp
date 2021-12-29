@@ -14,6 +14,7 @@
 #include "geometry.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -178,12 +179,10 @@ auto main(int argc, char** argv) -> int {
 	// Create a render pass
 	auto render_pass = vkw::render_pass{logical_device, pass_info};
 
-	const auto clear_values = std::vector{
+	render_pass.set_clear_values({
 		vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}},
 		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}
-	};
-
-	render_pass.set_clear_values(clear_values);
+	});
 
 
 	// Vertex Buffer
@@ -201,14 +200,16 @@ auto main(int argc, char** argv) -> int {
 
 	// Descriptor Pool
 	//--------------------------------------------------------------------------------
-	const auto pool_sizes = std::vector{vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 1}};
+	const auto pool_sizes = std::array{
+		vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, 1}
+	};
 
 	auto descriptor_pool = vkw::descriptor_pool{logical_device, pool_sizes};
 
 
 	// Descriptor Set
 	//--------------------------------------------------------------------------------
-	const auto bindings = std::vector{
+	const auto bindings = std::array{
 		vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr}
 	};
 
@@ -216,7 +217,7 @@ auto main(int argc, char** argv) -> int {
 
 	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
 
-	descriptor_set.update(logical_device, vk::DescriptorType::eUniformBuffer, std::span{&uniform_buffer.get_vk_buffer(), 1});
+	descriptor_set.update(logical_device, vkw::write_buffer_set{0, {std::cref(uniform_buffer.get_vk_buffer())}});
 
 
 	// Shaders
@@ -300,23 +301,21 @@ auto main(int argc, char** argv) -> int {
 	// Create the command batch
 	auto batch = vkw::command_batch{logical_device, 1, logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).family_index};
 
-	batch.add_command([&, frame = uint32_t{0}](vk::raii::CommandBuffer& buffer) mutable {
+	batch.add_command([&, frame = uint32_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
 		buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
 
-		buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *pipeline.get_vk_pipeline());
+		pipeline.bind(buffer);
 
-		buffer.bindDescriptorSets(
-			vk::PipelineBindPoint::eGraphics,
-			*pipeline.get_pipeline_info().layout->get_vk_layout(),
+		pipeline.bind_descriptor_sets(
+			buffer,
 			0,
-			{*descriptor_set.get_vk_descriptor_set()},
-			nullptr
+			descriptor_set,
+			{}
 		);
-
-		buffer.bindVertexBuffers(0, {*vertex_buffer.get_vk_buffer()}, {0});
 
 		buffer.setViewport(
 			0,
+			//camera.get_viewport()
 			vk::Viewport{
 				0.0f,
 				0.0f,
@@ -329,7 +328,8 @@ auto main(int argc, char** argv) -> int {
 
 		buffer.setScissor(0, render_pass.get_pass_info().area_rect);
 
-		buffer.draw(std::size(coloredCubeData), 1, 0, 0);
+		buffer.bindVertexBuffers(0, *vertex_buffer.get_vk_buffer(), vk::DeviceSize{0});
+		buffer.draw(vertex_buffer.get_size(), 1, 0, 0);
 
 		buffer.endRenderPass();
 

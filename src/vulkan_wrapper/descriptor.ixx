@@ -3,6 +3,7 @@ module;
 #include <numeric>
 #include <ranges>
 #include <span>
+#include <set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -15,8 +16,21 @@ import vkw.logical_device;
 import vkw.util;
 
 
+template<typename T>
+struct write_descriptor_set {
+	uint32_t binding;
+	//vk::DescriptorType descriptor_type;
+	std::vector<std::reference_wrapper<const T>> data;
+};
+
+
 export namespace vkw {
-	
+
+//using write_image_set        = write_descriptor_set<texture>;
+using write_buffer_set       = write_descriptor_set<vk::raii::Buffer>;
+using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
+
+
 class descriptor_set_layout {
 public:
 	descriptor_set_layout(
@@ -39,6 +53,8 @@ public:
 	}
 
 private:
+
+	[[nodiscard]]
 	static auto create_layout(
 		const logical_device& device,
 		std::span<const vk::DescriptorSetLayoutBinding> bindings,
@@ -55,18 +71,29 @@ private:
 
 
 class descriptor_set {
-	template<typename T>
-	struct write_descriptor_set {
-		vk::DescriptorType descriptor_type;
-		std::vector<std::reference_wrapper<const T>> data;
+	using write_set_variant = std::variant</*write_image_set, */write_buffer_set, write_texel_buffer_set>;
+
+	struct descriptor_binding_comparator {
+		using is_transparent = void;
+
+		constexpr auto operator()(const vk::DescriptorSetLayoutBinding& lhs, const vk::DescriptorSetLayoutBinding& rhs) const -> bool {
+			return lhs.binding < rhs.binding;
+		}
+		constexpr auto operator()(uint32_t lhs, const vk::DescriptorSetLayoutBinding& rhs) const -> bool {
+			return lhs < rhs.binding;
+		}
+		constexpr auto operator()(const vk::DescriptorSetLayoutBinding& lhs, uint32_t rhs) const -> bool {
+			return lhs.binding < rhs;
+		}
 	};
 
 public:
-	//using write_image_set        = write_descriptor_set<texture>;
-	using write_buffer_set       = write_descriptor_set<vk::raii::Buffer>;
-	using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
-
-	descriptor_set(vk::raii::DescriptorSet&& handle) : handle(std::move(handle)) {
+	descriptor_set(
+		vk::raii::DescriptorSet&& handle,
+		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings
+	) :
+		handle(std::move(handle)),
+		bindings(layout_bindings.begin(), layout_bindings.end()) {
 	}
 
 	[[nodiscard]]
@@ -75,25 +102,20 @@ public:
 	}
 
 	/*
-	auto update(
-		const logical_device& device,
-		vk::DescriptorType type,
-		std::span<const texture> textures,
-		uint32_t binding_offset = 0
-	) -> void {
-		const auto texture_infos = vkw::util::to_vector(std::views::transform(textures, [](auto&& tex) {
+	auto update(const logical_device& device, const write_image_set& images) -> void {
+		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](auto&& tex) {
 			return vk::DescriptorImageInfo{
-				*tex.sampler,
-				*tex.image_data->image_view,
+				*tex.get().sampler,
+				*tex.get().image_data->image_view,
 				vk::ImageLayout::eShaderReadOnlyOptimal
 			};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			binding_offset,
+			images.binding,
 			0,
-			type,
+			get_binding(images.binding).descriptorType,
 			texture_infos,
 		};
 
@@ -101,21 +123,16 @@ public:
 	}
 	*/
 
-	auto update(
-		const logical_device& device,
-		vk::DescriptorType type,
-		std::span<const vk::raii::Buffer> buffers,
-		uint32_t binding_offset = 0
-	) -> void {
-		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers, [](auto&& buf) {
-			return vk::DescriptorBufferInfo{*buf, 0, VK_WHOLE_SIZE};
+	auto update(const logical_device& device, const write_buffer_set& buffers) -> void {
+		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers.data, [](auto&& buf) {
+			return vk::DescriptorBufferInfo{*buf.get(), 0, VK_WHOLE_SIZE};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			binding_offset,
+			buffers.binding,
 			0,
-			type,
+			get_binding(buffers.binding).descriptorType,
 			{},
 			buffer_infos
 		};
@@ -123,19 +140,14 @@ public:
 		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(
-		const logical_device& device,
-		vk::DescriptorType type,
-		std::span<const vk::raii::BufferView> buffer_views,
-		uint32_t binding_offset = 0
-	) -> void {
-		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffer_views));
+	auto update(const logical_device& device, const write_texel_buffer_set& buffers) -> void {
+		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffers.data));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			binding_offset,
+			buffers.binding,
 			0,
-			type,
+			get_binding(buffers.binding).descriptorType,
 			{},
 			{},
 			view_handles
@@ -144,11 +156,7 @@ public:
 		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(
-		const logical_device& device,
-		const std::vector<std::variant</*write_image_set, */write_buffer_set, write_texel_buffer_set>>& buffer_data,
-		uint32_t binding_offset = 0
-	) -> void {
+	auto update(const logical_device& device, const std::vector<write_set_variant>& buffer_data) -> void {
 		//auto image_infos        = std::vector<std::vector<vk::DescriptorImageInfo>>{};
 		auto buffer_infos       = std::vector<std::vector<vk::DescriptorBufferInfo>>{};
 		auto texel_buffer_infos = std::vector<std::vector<vk::BufferView>>{};
@@ -157,11 +165,12 @@ public:
 		write_descriptor_sets.reserve(buffer_data.size());
 
 		for (const auto& write_set : buffer_data) {
-			auto& set_info = write_descriptor_sets.emplace_back(vk::WriteDescriptorSet{*handle, binding_offset++, 0});
+			auto& set_info = write_descriptor_sets.emplace_back(vk::WriteDescriptorSet{*handle, 0, 0});
 
 			/*
 			if (const auto* image_set = std::get_if<write_image_set>(&write_set)) {
-				set_info.setDescriptorType(image_set->descriptor_type);
+				set_info.setDstBinding(image_set->binding);
+				set_info.setDescriptorType(get_binding(image_set->binding).descriptorType);
 
 				auto& info_vec = image_infos.emplace_back();
 				for (const auto& image : image_set->data) {
@@ -175,7 +184,8 @@ public:
 				set_info.setImageInfo(info_vec);
 			}
 			else */if (const auto* buffer_set = std::get_if<write_buffer_set>(&write_set)) {
-				set_info.setDescriptorType(buffer_set->descriptor_type);
+				set_info.setDstBinding(buffer_set->binding);
+				set_info.setDescriptorType(get_binding(buffer_set->binding).descriptorType);
 
 				auto& info_vec = buffer_infos.emplace_back();
 				for (const auto& buffer : buffer_set->data) {
@@ -185,7 +195,8 @@ public:
 				set_info.setBufferInfo(info_vec);
 			}
 			else if (const auto* texel_buffer_set = std::get_if<write_texel_buffer_set>(&write_set)) {
-				set_info.setDescriptorType(texel_buffer_set->descriptor_type);
+				set_info.setDstBinding(texel_buffer_set->binding);
+				set_info.setDescriptorType(get_binding(texel_buffer_set->binding).descriptorType);
 
 				auto& view_vec = texel_buffer_infos.emplace_back();
 				view_vec = vkw::util::to_vector(vkw::util::as_handles(texel_buffer_set->data));
@@ -199,7 +210,14 @@ public:
 
 private:
 
+	[[nodiscard]]
+	auto get_binding(uint32_t binding_index) const -> const vk::DescriptorSetLayoutBinding& {
+		assert(bindings.contains(binding_index));
+		return *bindings.find(binding_index);
+	}
+
 	vk::raii::DescriptorSet handle;
+	std::set<vk::DescriptorSetLayoutBinding, descriptor_binding_comparator> bindings;
 };
 
 
@@ -249,7 +267,7 @@ public:
 	auto allocate(const descriptor_set_layout& layout) -> descriptor_set {
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, *layout.get_vk_layout()};
 		auto descriptor = std::move(vk::raii::DescriptorSets{device.get().get_vk_device(), allocate_info}.front());
-		return descriptor_set{std::move(descriptor)};
+		return descriptor_set{std::move(descriptor), layout.get_bindings()};
 	}
 
 	[[nodiscard]]
@@ -261,8 +279,8 @@ public:
 		
 		auto result = std::vector<descriptor_set>{};
 		result.reserve(sets.size());
-		for (auto&& set : sets) {
-			result.emplace_back(std::move(set));
+		for (auto i : std::views::iota(size_t{0}, layouts.size())) {
+			result.emplace_back(std::move(sets[i]), layouts[i].get_bindings());
 		}
 
 		return result;
@@ -270,6 +288,7 @@ public:
 
 private:
 
+	[[nodiscard]]
 	static auto make_descriptor_pool(
 		const logical_device& device,
 		std::span<const vk::DescriptorPoolSize> pool_sizes,

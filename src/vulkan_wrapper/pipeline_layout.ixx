@@ -41,37 +41,6 @@ public:
 		return push_constant_ranges;
 	}
 
-	auto bind_descriptor_sets(
-		vk::raii::CommandBuffer& cmd_buffer,
-		vk::PipelineBindPoint bind_point,
-		vk::DescriptorSet descriptor_set,
-		uint32_t first_set,
-		const std::vector<uint32_t>& offsets
-	) -> void {
-		bind_descriptor_sets(cmd_buffer, bind_point, first_set, std::span{&descriptor_set, 1}, offsets);
-	}
-
-	auto bind_descriptor_sets(
-		vk::raii::CommandBuffer& cmd_buffer,
-		vk::PipelineBindPoint bind_point,
-		uint32_t first_set,
-		std::span<const vk::raii::DescriptorSet> descriptor_sets,
-		const std::vector<uint32_t>& offsets
-	) -> void {
-		const auto sets = vkw::util::to_vector(vkw::util::as_handles(descriptor_sets));
-		bind_descriptor_sets(cmd_buffer, bind_point, first_set, sets, offsets);
-	}
-
-	auto bind_descriptor_sets(
-		vk::raii::CommandBuffer& cmd_buffer,
-		vk::PipelineBindPoint bind_point,
-		uint32_t first_set,
-		std::span<const vk::DescriptorSet> descriptor_sets,
-		const std::vector<uint32_t>& offsets
-	) -> void {
-		cmd_buffer.bindDescriptorSets(bind_point, *layout, first_set, descriptor_sets, offsets);
-	}
-
 private:
 
 	[[nodiscard]]

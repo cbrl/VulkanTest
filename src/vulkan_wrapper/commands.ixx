@@ -13,11 +13,9 @@ export module vkw.commands;
 import vkw.logical_device;
 
 
-export namespace vkw {
+namespace vkw {
 
 class command {
-	friend class command_batch;
-
 public:
 	// Size of command_pools span is the frame count
 	command(const logical_device& device, std::span<const vk::raii::CommandPool> command_pools) :
@@ -60,16 +58,15 @@ private:
 		return result;
 	}
 
-
 public:
-	std::function<void(vk::raii::CommandBuffer&)> command_func;
+	std::function<void(const vk::raii::CommandBuffer&)> command_func;
 
 private:
 	std::vector<vk::raii::CommandBuffer> buffers;
 };
 
 
-class command_batch {
+export class command_batch {
 public:
 	command_batch(const logical_device& device, uint32_t frame_count, uint32_t queue_family) :
 		device(device),
@@ -104,7 +101,7 @@ public:
 		return result;
 	}
 
-	auto add_command(const std::function<void(vk::raii::CommandBuffer&)>& func) -> void {
+	auto add_command(const std::function<void(const vk::raii::CommandBuffer&)>& func) -> void {
 		assert(func != nullptr);
 		commands.emplace_back(device.get(), pools).command_func = func;
 	}
@@ -115,7 +112,7 @@ public:
 		pools.at(frame).reset(vk::CommandPoolResetFlags{});
 
 		for (auto& cmd : commands) {
-			auto& buffer = cmd.buffers.at(frame);
+			auto& buffer = cmd.get_buffer(frame);
 
 			const auto begin_info = vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 			buffer.begin(begin_info);

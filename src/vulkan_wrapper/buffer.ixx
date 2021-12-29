@@ -37,11 +37,17 @@ public:
 		return vk_buffer;
 	}
 
-	auto upload(const T& data) const -> void {
+	[[nodiscard]]
+	auto get_size() const noexcept -> size_t {
+		return size;
+	}
+
+
+	auto upload(const T& data) -> void {
 		upload(std::span{&data, 1});
 	}
 
-	auto upload(std::span<const T> data) const -> void {
+	auto upload(std::span<const T> data) -> void {
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
 		assert(data.size() <= count);
@@ -51,6 +57,8 @@ public:
 		void* mapped = device_memory.mapMemory(0, data_size);
 		std::memcpy(mapped, data.data(), data_size);
         device_memory.unmapMemory();
+
+		size = data.size();
 	}
 
 
@@ -59,7 +67,7 @@ public:
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
 		const T&                     data
-	) const -> void {
+	) -> void {
 		upload(device, command_pool, queue, std::span{&data, 1});
 	}
 
@@ -68,7 +76,7 @@ public:
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
 		std::span<const T>           data
-	) const -> void {
+	) -> void {
 		auto command_buffer = vk::raii::CommandBuffers{
 			device.get_vk_device(),
 			vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}
@@ -83,7 +91,7 @@ public:
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
 		const T&                       data
-	) const -> void {
+	) -> void {
 		upload(device, command_buffer, queue, std::span{&data, 1});
 	}
 
@@ -91,8 +99,17 @@ public:
 		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
+		std::vector<T>&&               data
+	) -> void {
+		upload(device, command_buffer, queue, std::span{data});
+	}
+
+	auto upload(
+		const logical_device&          device,
+		const vk::raii::CommandBuffer& command_buffer,
+		const queue&                   queue,
 		std::span<const T>             data
-	) const -> void {
+	) -> void {
 		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
 		assert(data.size() <= count);
@@ -111,14 +128,16 @@ public:
         const auto submit_info = vk::SubmitInfo{nullptr, nullptr, *command_buffer};
         queue.submit(submit_info, *fence);
 		device.get_vk_device().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+
+		size = data.size();
 	}
 
 /*
-	auto stage_upload(command_batch& batch, const T& data) const -> void {
+	auto stage_upload(command_batch& batch, const T& data) -> void {
 		stage_upload(batch, std::span{&data, 1});
 	}
 
-	auto stage_upload(command_batch& batch, std::span<const T> data) const -> void {
+	auto stage_upload(command_batch& batch, std::span<const T> data) -> void {
 		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
 		assert(data.size() <= count);
@@ -126,8 +145,9 @@ public:
 		auto staging_buffer = buffer<T>{device, data.size(), vk::BufferUsageFlagBits::eTransferSrc};
 		staging_buffer.upload(data);
 
-		batch.add_onetime_command([dest_buffer = *this->vk_buffer, staging = std::move(stagin_buffer)](vk::raii::CommandBuffer& command_buffer) {
+		batch.add_onetime_command([dest_buffer = *this->vk_buffer, staging = std::move(stagin_buffer)](const vk::raii::CommandBuffer& command_buffer) {
 			command_buffer.copyBuffer(*staging.vk_buffer, dest_buffer, vk::BufferCopy{0, 0, data_size});
+			size = data.size();
 		});
 	}
 */
@@ -147,6 +167,8 @@ private:
 	size_t                  count;
 	vk::BufferUsageFlags    usage;
 	vk::MemoryPropertyFlags property_flags;
+
+	size_t size = 0;
 };
 
 } //namespace vkw

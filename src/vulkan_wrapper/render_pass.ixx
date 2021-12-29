@@ -51,13 +51,18 @@ public:
 		return framebuffers;
 	}
 
-	auto set_clear_values(const std::vector<vk::ClearValue>& values) -> void {
-		clear_values = values;
-	}
-
 	[[nodiscard]]
 	auto get_clear_values() const noexcept -> const std::vector<vk::ClearValue>& {
 		return clear_values;
+	}
+
+	auto set_clear_values(std::vector<vk::ClearValue>&& values) noexcept -> void {
+		clear_values = std::move(values);
+	}
+
+	auto set_clear_values(std::span<const vk::ClearValue> values) -> void {
+		clear_values.clear();
+		std::ranges::copy(values, std::back_insert_iterator(clear_values));
 	}
 
 	[[nodiscard]]

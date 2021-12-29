@@ -175,6 +175,32 @@ public:
 		return vk_pipeline;
 	}
 
+	auto bind(const vk::raii::CommandBuffer& cmd_buffer) -> void {
+		cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *get_vk_pipeline());
+	}
+
+	auto bind_descriptor_sets(
+		const vk::raii::CommandBuffer& cmd_buffer,
+		uint32_t first_set,
+		const descriptor_set& descriptor_set,
+		const std::vector<uint32_t>& offsets
+	) -> void {
+		bind_descriptor_sets(cmd_buffer, first_set, std::span{&descriptor_set, 1}, offsets);
+	}
+
+	auto bind_descriptor_sets(
+		const vk::raii::CommandBuffer& cmd_buffer,
+		uint32_t first_set,
+		std::span<const descriptor_set> descriptor_sets,
+		const std::vector<uint32_t>& offsets
+	) -> void {
+		const auto sets = vkw::util::to_vector(std::views::transform(descriptor_sets, [](auto&& set) {
+			return *set.get_vk_descriptor_set();
+		}));
+
+		cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *info.layout->get_vk_layout(), first_set, sets, offsets);
+	}
+
 private:
 
 	static auto create_pipeline(
