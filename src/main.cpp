@@ -195,7 +195,7 @@ auto main(int argc, char** argv) -> int {
 	// Model Uniform Buffer
 	//--------------------------------------------------------------------------------
 	auto uniform_buffer = vkw::buffer<glm::mat4>{logical_device, 1, vk::BufferUsageFlagBits::eUniformBuffer};
-    const auto mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(window.get_window_size());
+	const auto mvpc_matrix = vk::su::createModelViewProjectionClipMatrix(window.get_window_size());
 	uniform_buffer.upload(mvpc_matrix);
 
 
@@ -229,10 +229,10 @@ auto main(int argc, char** argv) -> int {
 		return spirv;
 	};
 
-    glslang::InitializeProcess();
+	glslang::InitializeProcess();
 	const auto vertex_shader_data   = glsl_to_spirv(vk::ShaderStageFlagBits::eVertex, vertexShaderText_PC_C);
 	const auto fragment_shader_data = glsl_to_spirv(vk::ShaderStageFlagBits::eFragment, fragmentShaderText_C_C);
-    glslang::FinalizeProcess();
+	glslang::FinalizeProcess();
 
 	auto vertex_stage   = vkw::shader_stage{logical_device, vk::ShaderStageFlagBits::eVertex, vertex_shader_data, {}, {}};
 	auto fragment_stage = vkw::shader_stage{logical_device, vk::ShaderStageFlagBits::eFragment, fragment_shader_data, {}, {}};
@@ -358,19 +358,19 @@ auto main(int argc, char** argv) -> int {
 
 	// Present
 	//--------------------------------------------------------------------------------
-    const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain.get_vk_swapchain(), image_index};
-    const auto present_result = logical_device.get_present_queue(*window.get_surface())->presentKHR(present_info);
+	const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain.get_vk_swapchain(), image_index};
+	const auto present_result = logical_device.get_present_queue(*window.get_surface())->presentKHR(present_info);
 
-    switch (present_result) {
+	switch (present_result) {
 		case vk::Result::eSuccess: break;
 		case vk::Result::eSuboptimalKHR: {
 			std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
 			break;
 		}
 		default: assert(false);
-    }
+	}
 
-    logical_device.get_vk_device().waitIdle();
+	logical_device.get_vk_device().waitIdle();
 
 
 	// Wait for exit event
