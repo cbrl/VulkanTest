@@ -1,5 +1,6 @@
 module;
 
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -47,7 +48,7 @@ public:
 		uint32_t first_set,
 		const descriptor_set& descriptor_set,
 		const std::vector<uint32_t>& offsets
-	) -> void {
+	) const -> void {
 		bind_descriptor_sets(cmd_buffer, bind_point, first_set, std::span{&descriptor_set, 1}, offsets);
 	}
 
@@ -57,7 +58,7 @@ public:
 		uint32_t first_set,
 		std::span<const descriptor_set> descriptor_sets,
 		const std::vector<uint32_t>& offsets
-	) -> void {
+	) const -> void {
 		const auto sets = vkw::util::to_vector(std::views::transform(descriptor_sets, [](auto&& set) {
 			return *set.get_vk_descriptor_set();
 		}));

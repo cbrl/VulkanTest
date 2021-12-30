@@ -26,6 +26,8 @@ import vkw;
 
 // TODO:
 //   - Use VK_KHR_dynamic_rendering to eliminate render_pass boilerplate for single-pass instances
+//     - Multi-pass render passes are most effective on mobile devices, which usually use tiled rendering. PC GPUs generally
+//       implement minimal rendering (or none for older GPUs), making a multi-pass technique less effective.
 //     - Perhaps a render_pass_single class encapsulating the minimal required information
 
 auto main(int argc, char** argv) -> int {
