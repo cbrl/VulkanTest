@@ -49,7 +49,6 @@ public:
 		return size_bytes;
 	}
 
-
 	auto upload(std::span<const std::byte> data) -> void {
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
