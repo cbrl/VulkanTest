@@ -12,6 +12,7 @@ module;
 
 export module vkw.descriptor;
 
+import vkw.buffer;
 import vkw.logical_device;
 import vkw.util;
 
@@ -27,7 +28,7 @@ struct write_descriptor_set {
 export namespace vkw {
 
 //using write_image_set        = write_descriptor_set<texture>;
-using write_buffer_set       = write_descriptor_set<vk::raii::Buffer>;
+using write_buffer_set       = write_descriptor_set<buffer<void>>;
 using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
 
 
@@ -103,7 +104,7 @@ public:
 
 	/*
 	auto update(const logical_device& device, const write_image_set& images) -> void {
-		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](auto&& tex) {
+		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](const texture& tex) {
 			return vk::DescriptorImageInfo{
 				*tex.get().sampler,
 				*tex.get().image_data->image_view,
@@ -124,8 +125,8 @@ public:
 	*/
 
 	auto update(const logical_device& device, const write_buffer_set& buffers) -> void {
-		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers.data, [](auto&& buf) {
-			return vk::DescriptorBufferInfo{*buf.get(), 0, VK_WHOLE_SIZE};
+		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers.data, [](const buffer<>& buf) {
+			return vk::DescriptorBufferInfo{*buf.get_vk_buffer(), 0, VK_WHOLE_SIZE};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
@@ -173,10 +174,10 @@ public:
 				set_info.setDescriptorType(get_binding(image_set->binding).descriptorType);
 
 				auto& info_vec = image_infos.emplace_back();
-				for (const auto& image : image_set->data) {
+				for (const texture& tex : image_set->data) {
 					info_vec.push_back(vk::DescriptorImageInfo{
-						*image.sampler,
-						*image.image_data->image_view,
+						*tex.sampler,
+						*tex.image_data->image_view,
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}
@@ -188,8 +189,8 @@ public:
 				set_info.setDescriptorType(get_binding(buffer_set->binding).descriptorType);
 
 				auto& info_vec = buffer_infos.emplace_back();
-				for (const auto& buffer : buffer_set->data) {
-					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get(), 0, VK_WHOLE_SIZE});
+				for (const buffer<void>& buffer : buffer_set->data) {
+					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get_vk_buffer(), 0, VK_WHOLE_SIZE});
 				}
 
 				set_info.setBufferInfo(info_vec);

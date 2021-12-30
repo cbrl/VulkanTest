@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -217,7 +218,7 @@ auto main(int argc, char** argv) -> int {
 
 	auto descriptor_set = descriptor_pool.allocate(descriptor_layout);
 
-	descriptor_set.update(logical_device, vkw::write_buffer_set{0, {std::cref(uniform_buffer.get_vk_buffer())}});
+	descriptor_set.update(logical_device, vkw::write_buffer_set{0, {std::cref(uniform_buffer)}});
 
 
 	// Shaders
@@ -340,7 +341,7 @@ auto main(int argc, char** argv) -> int {
 	// Run Commands
 	//--------------------------------------------------------------------------------
 	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device.get_vk_device(), vk::SemaphoreCreateInfo{}};
-	const auto [acq_result, image_index] = swapchain.get_vk_swapchain().acquireNextImage(100'000'000, *image_acquired_semaphore);
+	const auto [acq_result, image_index] = swapchain.get_vk_swapchain().acquireNextImage(std::numeric_limits<uint64_t>::max(), *image_acquired_semaphore);
 
 	batch.run_commands(0);
 
