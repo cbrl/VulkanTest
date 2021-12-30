@@ -24,6 +24,9 @@
 
 import vkw;
 
+// TODO:
+//   - Use VK_KHR_dynamic_rendering to eliminate render_pass boilerplate for single-pass instances
+//     - Perhaps a render_pass_single class encapsulating the minimal required information
 
 auto main(int argc, char** argv) -> int {
 	// Instance
