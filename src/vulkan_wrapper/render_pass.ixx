@@ -2,6 +2,7 @@ module;
 
 #include <cassert>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <ranges>
 #include <utility>
@@ -56,7 +57,7 @@ public:
 		return clear_values;
 	}
 
-	auto set_clear_values(std::vector<vk::ClearValue>&& values) noexcept -> void {
+	auto set_clear_values(std::initializer_list<vk::ClearValue> values) noexcept -> void {
 		clear_values = std::move(values);
 	}
 
