@@ -302,7 +302,7 @@ auto main(int argc, char** argv) -> int {
 	// Create the command batch
 	auto batch = vkw::command_batch{logical_device, 1, logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).family_index};
 
-	batch.add_command([&, frame = uint32_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
+	batch.add_command([&, frame = size_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
 		buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
 
 		pipeline.bind(buffer);

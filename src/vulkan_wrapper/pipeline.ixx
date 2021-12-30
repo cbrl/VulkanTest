@@ -198,7 +198,7 @@ public:
 			return *set.get_vk_descriptor_set();
 		}));
 
-		cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *info.layout->get_vk_layout(), first_set, sets, offsets);
+		info.layout->bind_descriptor_sets(cmd_buffer, vk::PipelineBindPoint::eGraphics, first_set, sets, offsets);
 	}
 
 private:
