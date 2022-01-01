@@ -89,6 +89,7 @@ auto validate_layers(const std::vector<const char*>& layers, const std::vector<v
 	}
 
 	if (invalid_layers) {
+		std::cout << std::endl;
 		throw std::runtime_error{"Invalid layers"};
 	}
 }
@@ -117,6 +118,7 @@ auto validate_extensions(const std::vector<const char*>& extensions, const std::
 	}
 
 	if (invalid_extensions) {
+		std::cout << std::endl;
 		throw std::runtime_error{"Invalid extensions"};
 	}
 }

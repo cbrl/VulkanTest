@@ -5,6 +5,7 @@ module;
 #include <ranges>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -28,6 +29,16 @@ class graphics_pipeline_info_base {
 	friend class graphics_pipeline_info;
 
 public:
+	struct render_pass_details {
+		std::reference_wrapper<const render_pass> pass;
+		uint32_t subpass = 0;
+	};
+
+	struct render_pass_single_details {
+		std::vector<vk::Format> color_formats;
+		vk::Format depth_stencil_format;
+	};
+
 	graphics_pipeline_info_base() {
 		input_assembly_state.topology = vk::PrimitiveTopology::eTriangleList;
 
@@ -101,14 +112,13 @@ public:
 	vk::PipelineDynamicStateCreateInfo       dynamic_state;
 
 	// The shader stages this pipeline is composed of
-	std::vector<std::reference_wrapper<const vkw::shader_stage>> shader_stages;
+	std::vector<std::reference_wrapper<const shader_stage>> shader_stages;
 
 	// The pipeline layout
-	const vkw::pipeline_layout* layout = nullptr;
+	const pipeline_layout* layout = nullptr;
 
-	// The render pass and subpass
-	const vkw::render_pass* pass = nullptr;
-	uint32_t subpass = 0;
+	// The render pass to use
+	std::variant<std::monostate, render_pass_details, render_pass_single_details> pass_details;
 
 private:
 
@@ -206,31 +216,65 @@ private:
 	) -> vk::raii::Pipeline {
 
 		assert(info.layout && "graphics_pipeline_info::layout must not be null");
-		assert(info.pass && "graphics_pipeline_info::pass must not be null");
+		assert((info.pass_details.index() != 0) && "graphics_pipeline_info::pass_details must not be null");
 
 		const auto stages = vkw::util::to_vector(std::views::transform(info.shader_stages, &shader_stage::get_create_info));
 
-		const auto pipeline_create_info = vk::GraphicsPipelineCreateInfo{
-			vk::PipelineCreateFlags{},
-			stages,
-			&info.vertex_input_state,
-			&info.input_assembly_state,
-			&info.tessellation_state,
-			&info.viewport_state,
-			&info.raster_state,
-			&info.multistample_state,
-			&info.depth_stencil_state,
-			&info.color_blend_state,
-			&info.dynamic_state,
-			*info.layout->get_vk_layout(),
-			*info.pass->get_vk_render_pass(),
-			info.subpass,
-			vk::Pipeline{},
-			-1
-		};
+		if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_details>(&info.pass_details)) {
+			const auto pipeline_create_info = vk::GraphicsPipelineCreateInfo{
+				vk::PipelineCreateFlags{},
+				stages,
+				&info.vertex_input_state,
+				&info.input_assembly_state,
+				&info.tessellation_state,
+				&info.viewport_state,
+				&info.raster_state,
+				&info.multistample_state,
+				&info.depth_stencil_state,
+				&info.color_blend_state,
+				&info.dynamic_state,
+				*info.layout->get_vk_layout(),
+				*pass_info->pass.get().get_vk_render_pass(),
+				pass_info->subpass,
+				vk::Pipeline{},
+				-1
+			};
 
-	
-		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
+			return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
+		}
+		else if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_single_details>(&info.pass_details)) {
+			const auto pipeline_create_info = vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR>{
+				{
+					vk::PipelineCreateFlags{},
+					stages,
+					&info.vertex_input_state,
+					&info.input_assembly_state,
+					&info.tessellation_state,
+					&info.viewport_state,
+					&info.raster_state,
+					&info.multistample_state,
+					&info.depth_stencil_state,
+					&info.color_blend_state,
+					&info.dynamic_state,
+					*info.layout->get_vk_layout(),
+					vk::RenderPass{},
+					0,
+					vk::Pipeline{},
+					-1
+				},
+				{
+					0,
+					pass_info->color_formats,
+					pass_info->depth_stencil_format,
+					pass_info->depth_stencil_format
+				}
+			};
+
+			return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()};
+		}
+		else {
+			throw std::runtime_error{"Invalid state for graphics_pipeline_info::pass_details"};
+		}
 	}
 
 	graphics_pipeline_info info;

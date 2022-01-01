@@ -139,7 +139,7 @@ public:
 
 private:
 
-	// Add any layers/extensions required by the debug config
+	// Add any required layers or extensions
 	[[nodiscard]]
 	static auto process_config(const vk::raii::Context& context, const instance_info& instance_config, const debug_info& debug_config) -> instance_info {
 		auto output = instance_config;

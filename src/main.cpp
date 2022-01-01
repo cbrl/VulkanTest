@@ -131,12 +131,12 @@ auto main(int argc, char** argv) -> int {
 
 	// Depth Buffer
 	//--------------------------------------------------------------------------------
-	auto depth_buffer = vkw::util::create_depth_buffer(logical_device, vk::Format::eD16Unorm, window.get_window_size());
+	auto depth_buffer = vkw::util::create_depth_stencil_buffer(logical_device, vk::Format::eD24UnormS8Uint, window.get_window_size());
 
 
 	// Render Pass
 	//--------------------------------------------------------------------------------
-
+/*
 	// Setup the render pass info
 	auto pass_info = vkw::render_pass_info{};
 
@@ -189,6 +189,49 @@ auto main(int argc, char** argv) -> int {
 		vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}},
 		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}
 	});
+*/
+
+	auto render_pass = vkw::render_pass_single{};
+
+	render_pass.area_rect = vk::Rect2D{{0, 0}, window.get_window_size()};
+	render_pass.color_attachments.resize(2);
+
+	render_pass.color_attachments[0].push_back(
+		vk::RenderingAttachmentInfoKHR{
+			*swapchain.get_image_views()[0],
+			vk::ImageLayout::eColorAttachmentOptimal, //vk::ImageLayout::ePresentSrcKHR
+			vk::ResolveModeFlagBits::eNone,
+			vk::ImageView{},
+			vk::ImageLayout::eUndefined,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eStore,
+			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
+		}
+	);
+
+	render_pass.color_attachments[1].push_back(
+		vk::RenderingAttachmentInfoKHR{
+			*swapchain.get_image_views()[1],
+			vk::ImageLayout::eColorAttachmentOptimal, //vk::ImageLayout::ePresentSrcKHR
+			vk::ResolveModeFlagBits::eNone,
+			vk::ImageView{},
+			vk::ImageLayout::eUndefined,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eStore,
+			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
+		}
+	);
+
+	render_pass.depth_stencil_attachment = vk::RenderingAttachmentInfoKHR{
+		*depth_buffer.get_vk_image_view(),
+		vk::ImageLayout::eDepthStencilAttachmentOptimal,
+		vk::ResolveModeFlagBits::eNone,
+		vk::ImageView{},
+		vk::ImageLayout::eUndefined,
+		vk::AttachmentLoadOp::eClear,
+		vk::AttachmentStoreOp::eDontCare,
+		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
+	};
 
 
 	// Vertex Buffer
@@ -262,7 +305,10 @@ auto main(int argc, char** argv) -> int {
 
 	pipeline_info.shader_stages = {std::cref(vertex_stage), std::cref(fragment_stage)};
 	pipeline_info.layout        = &pipeline_layout;
-	pipeline_info.pass          = &render_pass;
+	pipeline_info.pass_details  = vkw::graphics_pipeline_info::render_pass_single_details{
+		.color_formats = {swapchain.get_format().format, swapchain.get_format().format},
+		.depth_stencil_format = depth_buffer.get_info().format
+	};
 
 	pipeline_info.raster_state.frontFace = vk::FrontFace::eClockwise;
 
@@ -307,17 +353,49 @@ auto main(int argc, char** argv) -> int {
 	// Create the command batch
 	auto batch = vkw::command_batch{logical_device, 1, logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).family_index};
 
-	batch.add_command([&, frame = size_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
-		buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
+	batch.add_command([&, frame = uint32_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
+		const auto color_barrier = vk::ImageMemoryBarrier{
+			vk::AccessFlagBits{},
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eColorAttachmentOptimal,
+			VK_QUEUE_FAMILY_IGNORED,
+			VK_QUEUE_FAMILY_IGNORED,
+			swapchain.get_images()[frame],
+			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
+		};
 
-		pipeline.bind(buffer);
+		const auto depth_barrier = vk::ImageMemoryBarrier{
+			vk::AccessFlagBits{},
+			vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eDepthAttachmentOptimal,
+			VK_QUEUE_FAMILY_IGNORED,
+			VK_QUEUE_FAMILY_IGNORED,
+			*depth_buffer.get_vk_image(),
+			vk::ImageSubresourceRange{depth_buffer.get_info().aspect_flags, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
+		};
 
-		pipeline.bind_descriptor_sets(
-			buffer,
-			0,
-			descriptor_set,
-			{}
+		buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::DependencyFlagBits{},
+			nullptr,
+			nullptr,
+			color_barrier
 		);
+
+		buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+			vk::DependencyFlagBits{},
+			nullptr,
+			nullptr,
+			depth_barrier
+		);
+
+		//buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
+		buffer.beginRenderingKHR(render_pass.get_rendering_info(frame));
 
 		buffer.setViewport(
 			0,
@@ -332,14 +410,46 @@ auto main(int argc, char** argv) -> int {
 			}
 		);
 
-		buffer.setScissor(0, render_pass.get_pass_info().area_rect);
+		//buffer.setScissor(0, render_pass.get_pass_info().area_rect);
+		buffer.setScissor(0, render_pass.area_rect);
+
+		pipeline.bind(buffer);
+
+		pipeline.bind_descriptor_sets(
+			buffer,
+			0,
+			descriptor_set,
+			{}
+		);
 
 		buffer.bindVertexBuffers(0, *vertex_buffer.get_vk_buffer(), vk::DeviceSize{0});
 		buffer.draw(vertex_buffer.get_size(), 1, 0, 0);
 
-		buffer.endRenderPass();
+		//buffer.endRenderPass();
+		buffer.endRenderingKHR();
 
-		frame = (frame + 1) % render_pass.get_vk_framebuffers().size();
+		const auto color_output_barrier = vk::ImageMemoryBarrier{
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::AccessFlagBits{},
+			vk::ImageLayout::eColorAttachmentOptimal,
+			vk::ImageLayout::ePresentSrcKHR,
+			VK_QUEUE_FAMILY_IGNORED,
+			VK_QUEUE_FAMILY_IGNORED,
+			swapchain.get_images()[frame],
+			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
+		};
+
+		buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::PipelineStageFlagBits::eBottomOfPipe,
+			vk::DependencyFlagBits{},
+			nullptr,
+			nullptr,
+			color_output_barrier
+		);
+
+		//frame = (frame + 1) % render_pass.get_vk_framebuffers().size();
+		frame = (frame + 1) % swapchain.get_image_views().size();
 	});
 
 

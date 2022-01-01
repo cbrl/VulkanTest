@@ -365,6 +365,9 @@ private:
 	}
 
 	static auto key_callback(GLFWwindow* handle, int key, int scancode, int action, int mods) -> void {
+		(void)scancode;
+		(void)mods;
+
 		auto* window_cls = get_class_pointer(handle);
 
 		if (action == GLFW_PRESS) {

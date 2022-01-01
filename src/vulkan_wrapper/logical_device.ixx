@@ -98,7 +98,7 @@ struct logical_device_info {
 
 class logical_device {
 public:
-	logical_device(const logical_device_info& info) : device_info(info), device(create_device(device_info)) {
+	logical_device(const logical_device_info& info) : device_info(process_config(info)), device(create_device(device_info)) {
 		// First queue pass: map queues to their exact queue flags.
 		// E.g. If a queue is specified which suports only Compute, then map that as the first
 		// entry for the Compute flag. This ensures the best match for the requested queue type is
@@ -200,11 +200,21 @@ public:
 
 private:
 
+	[[nodiscard]]
+	static auto process_config(const logical_device_info& info) -> logical_device_info {
+		auto output = info;
+
+		// Dynamic rendering required by render_pass_single
+		output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+
+		return output;
+	}
+
+	[[nodiscard]]
 	static auto create_device(const logical_device_info& info) -> vk::raii::Device {
 		// Validate the queues and extensions
 		debug::validate_queues(info.queue_family_info_list, info.physical_device.get().getQueueFamilyProperties());
 		debug::validate_extensions(info.extensions, info.physical_device.get().enumerateDeviceExtensionProperties());
-
 
 		// Build the queue create info list
 		auto queue_create_info_list = std::vector<vk::DeviceQueueCreateInfo>{};
@@ -230,15 +240,20 @@ private:
 		}
 
 		// Create the device
-		const auto device_create_info = vk::DeviceCreateInfo{
-			vk::DeviceCreateFlags{},
-			queue_create_info_list,
-			{},
-			info.extensions,
-			&info.features
+		const auto device_create_info = vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceDynamicRenderingFeaturesKHR>{
+			{
+				vk::DeviceCreateFlags{},
+				queue_create_info_list,
+				nullptr,
+				info.extensions,
+				&info.features
+			},
+			{
+				VK_TRUE
+			}
 		};
 
-		return vk::raii::Device{info.physical_device, device_create_info};
+		return vk::raii::Device{info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
 	}
 
 
