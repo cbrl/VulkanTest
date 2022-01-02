@@ -368,49 +368,6 @@ auto main(int argc, char** argv) -> int {
 	auto image_num = uint32_t{0};
 
 	batch.add_command([&](const vk::raii::CommandBuffer& buffer) mutable {
-		/*
-		const auto color_barrier = vk::ImageMemoryBarrier{
-			vk::AccessFlagBits{},
-			vk::AccessFlagBits::eColorAttachmentWrite,
-			vk::ImageLayout::eUndefined,
-			vk::ImageLayout::eColorAttachmentOptimal,
-			VK_QUEUE_FAMILY_IGNORED,
-			VK_QUEUE_FAMILY_IGNORED,
-			swapchain.get_images()[image_num],
-			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-		};
-
-		const auto depth_barrier = vk::ImageMemoryBarrier{
-			vk::AccessFlagBits{},
-			vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-			vk::ImageLayout::eUndefined,
-			vk::ImageLayout::eDepthAttachmentOptimal,
-			VK_QUEUE_FAMILY_IGNORED,
-			VK_QUEUE_FAMILY_IGNORED,
-			*depth_buffer.get_vk_image(),
-			vk::ImageSubresourceRange{depth_buffer.get_info().aspect_flags, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-		};
-
-		buffer.pipelineBarrier(
-			vk::PipelineStageFlagBits::eTopOfPipe,
-			vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::DependencyFlagBits{},
-			nullptr,
-			nullptr,
-			color_barrier
-		);
-
-		buffer.pipelineBarrier(
-			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
-			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
-			vk::DependencyFlagBits{},
-			nullptr,
-			nullptr,
-			depth_barrier
-		);
-		*/
-
-
 		//buffer.beginRenderPass(render_pass.get_render_pass_begin_info(image_num), vk::SubpassContents::eInline);
 		//buffer.beginRenderingKHR(render_pass.get_rendering_info(image_num));
 		render_pass.begin(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
@@ -445,28 +402,6 @@ auto main(int argc, char** argv) -> int {
 
 		//buffer.endRenderPass();
 		render_pass.end(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
-
-		/*
-		const auto color_output_barrier = vk::ImageMemoryBarrier{
-			vk::AccessFlagBits::eColorAttachmentWrite,
-			vk::AccessFlagBits{},
-			vk::ImageLayout::eColorAttachmentOptimal,
-			vk::ImageLayout::ePresentSrcKHR,
-			VK_QUEUE_FAMILY_IGNORED,
-			VK_QUEUE_FAMILY_IGNORED,
-			swapchain.get_images()[image_num],
-			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-		};
-
-		buffer.pipelineBarrier(
-			vk::PipelineStageFlagBits::eColorAttachmentOutput,
-			vk::PipelineStageFlagBits::eBottomOfPipe,
-			vk::DependencyFlagBits{},
-			nullptr,
-			nullptr,
-			color_output_barrier
-		);
-		*/
 	});
 
 
