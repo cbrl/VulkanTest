@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <bit>
 #include <concepts>
 #include <memory>
@@ -8,7 +9,7 @@ module;
 #include <utility>
 #include <vector>
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
 
 export module vkw.util;
 
@@ -108,37 +109,49 @@ auto separate_flags(vk::Flags<BitType> flags) -> std::vector<BitType> {
 
 
 [[nodiscard]]
-auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
-	// Priority list of formats to look for
-	static const vk::Format desired_formats[] = {
-		vk::Format::eB8G8R8A8Srgb,
-		vk::Format::eR8G8B8A8Srgb,
-		vk::Format::eB8G8R8Srgb,
-		vk::Format::eR8G8B8Srgb,
+auto select_depth_format(const vk::raii::PhysicalDevice& device) -> std::optional<vk::Format> {
+	static constexpr auto desired_formats = std::array{
+		vk::Format::eD32Sfloat,
+		vk::Format::eD16Unorm
 	};
 
-	// Look for a desired format that's in the SRGB color space
 	for (const auto& format : desired_formats) {
-		const auto it = std::ranges::find_if(formats, [format](const vk::SurfaceFormatKHR& f) {
-			return (f.format == format) && (f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear);
-			});
+		const auto properties = device.getFormatProperties(format);
 
-		if (it != formats.end()) {
-			return *it;
+		if (properties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+			return format;
 		}
 	}
 
-	return {};
+	return std::nullopt;
 }
 
 [[nodiscard]]
-auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
+auto select_depth_stencil_format(const vk::raii::PhysicalDevice& device) -> std::optional<vk::Format> {
+	static constexpr auto desired_formats = std::array{
+		vk::Format::eD32SfloatS8Uint,
+		vk::Format::eD24UnormS8Uint
+	};
+
+	for (const auto& format : desired_formats) {
+		const auto properties = device.getFormatProperties(format);
+
+		if (properties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+			return format;
+		}
+	}
+
+	return std::nullopt;
+}
+
+[[nodiscard]]
+auto select_srgb_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
 	// Priority list of formats to look for
-	static const vk::Format desired_formats[] = {
-		vk::Format::eB8G8R8A8Unorm,
-		vk::Format::eR8G8B8A8Unorm,
-		vk::Format::eB8G8R8Unorm,
-		vk::Format::eR8G8B8Unorm,
+	static constexpr auto desired_formats = std::array{
+		vk::Format::eB8G8R8A8Srgb,
+		vk::Format::eR8G8B8A8Srgb,
+		vk::Format::eB8G8R8Srgb,
+		vk::Format::eR8G8B8Srgb
 	};
 
 	// Look for a desired format that's in the SRGB color space
@@ -152,7 +165,31 @@ auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>& format
 		}
 	}
 
-	return {};
+	return std::nullopt;
+}
+
+[[nodiscard]]
+auto select_unorm_surface_format(const std::vector<vk::SurfaceFormatKHR>& formats) -> std::optional<vk::SurfaceFormatKHR> {
+	// Priority list of formats to look for
+	static constexpr auto desired_formats = std::array{
+		vk::Format::eB8G8R8A8Unorm,
+		vk::Format::eR8G8B8A8Unorm,
+		vk::Format::eB8G8R8Unorm,
+		vk::Format::eR8G8B8Unorm
+	};
+
+	// Look for a desired format that's in the SRGB color space
+	for (const auto& format : desired_formats) {
+		const auto it = std::ranges::find_if(formats, [format](const vk::SurfaceFormatKHR& f) {
+			return (f.format == format) && (f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear);
+		});
+
+		if (it != formats.end()) {
+			return *it;
+		}
+	}
+
+	return std::nullopt;
 }
 
 

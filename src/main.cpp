@@ -131,7 +131,11 @@ auto main(int argc, char** argv) -> int {
 
 	// Depth Buffer
 	//--------------------------------------------------------------------------------
-	auto depth_buffer = vkw::util::create_depth_stencil_buffer(logical_device, vk::Format::eD24UnormS8Uint, window.get_window_size());
+	auto depth_buffer = vkw::util::create_depth_buffer(
+		logical_device,
+		vkw::util::select_depth_format(logical_device.get_vk_physical_device()).value(),
+		window.get_window_size()
+	);
 
 
 	// Render Pass
@@ -195,6 +199,8 @@ auto main(int argc, char** argv) -> int {
 
 	render_pass.area_rect = vk::Rect2D{{0, 0}, window.get_window_size()};
 	render_pass.color_attachments.resize(2);
+	render_pass.color_initial_layouts.resize(2);
+	render_pass.color_final_layouts.resize(2);
 
 	render_pass.color_attachments[0].push_back(
 		vk::RenderingAttachmentInfoKHR{
@@ -208,6 +214,8 @@ auto main(int argc, char** argv) -> int {
 			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
 		}
 	);
+	render_pass.color_initial_layouts[0].push_back(vk::ImageLayout::eUndefined);
+	render_pass.color_final_layouts[0].push_back(vk::ImageLayout::ePresentSrcKHR);
 
 	render_pass.color_attachments[1].push_back(
 		vk::RenderingAttachmentInfoKHR{
@@ -221,6 +229,8 @@ auto main(int argc, char** argv) -> int {
 			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
 		}
 	);
+	render_pass.color_initial_layouts[1].push_back(vk::ImageLayout::eUndefined);
+	render_pass.color_final_layouts[1].push_back(vk::ImageLayout::ePresentSrcKHR);
 
 	render_pass.depth_stencil_attachment = vk::RenderingAttachmentInfoKHR{
 		*depth_buffer.get_vk_image_view(),
@@ -232,6 +242,8 @@ auto main(int argc, char** argv) -> int {
 		vk::AttachmentStoreOp::eDontCare,
 		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
 	};
+	render_pass.depth_initial_layout = vk::ImageLayout::eUndefined;
+	render_pass.depth_final_layout = vk::ImageLayout::ePresentSrcKHR;
 
 
 	// Vertex Buffer
@@ -353,7 +365,10 @@ auto main(int argc, char** argv) -> int {
 	// Create the command batch
 	auto batch = vkw::command_batch{logical_device, 1, logical_device.get_queue(vk::QueueFlagBits::eGraphics, 0).family_index};
 
-	batch.add_command([&, frame = uint32_t{0}](const vk::raii::CommandBuffer& buffer) mutable {
+	auto image_num = uint32_t{0};
+
+	batch.add_command([&](const vk::raii::CommandBuffer& buffer) mutable {
+		/*
 		const auto color_barrier = vk::ImageMemoryBarrier{
 			vk::AccessFlagBits{},
 			vk::AccessFlagBits::eColorAttachmentWrite,
@@ -361,7 +376,7 @@ auto main(int argc, char** argv) -> int {
 			vk::ImageLayout::eColorAttachmentOptimal,
 			VK_QUEUE_FAMILY_IGNORED,
 			VK_QUEUE_FAMILY_IGNORED,
-			swapchain.get_images()[frame],
+			swapchain.get_images()[image_num],
 			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
 		};
 
@@ -393,9 +408,12 @@ auto main(int argc, char** argv) -> int {
 			nullptr,
 			depth_barrier
 		);
+		*/
 
-		//buffer.beginRenderPass(render_pass.get_render_pass_begin_info(frame), vk::SubpassContents::eInline);
-		buffer.beginRenderingKHR(render_pass.get_rendering_info(frame));
+
+		//buffer.beginRenderPass(render_pass.get_render_pass_begin_info(image_num), vk::SubpassContents::eInline);
+		//buffer.beginRenderingKHR(render_pass.get_rendering_info(image_num));
+		render_pass.begin(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
 
 		buffer.setViewport(
 			0,
@@ -426,8 +444,9 @@ auto main(int argc, char** argv) -> int {
 		buffer.draw(vertex_buffer.get_size(), 1, 0, 0);
 
 		//buffer.endRenderPass();
-		buffer.endRenderingKHR();
+		render_pass.end(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
 
+		/*
 		const auto color_output_barrier = vk::ImageMemoryBarrier{
 			vk::AccessFlagBits::eColorAttachmentWrite,
 			vk::AccessFlagBits{},
@@ -435,7 +454,7 @@ auto main(int argc, char** argv) -> int {
 			vk::ImageLayout::ePresentSrcKHR,
 			VK_QUEUE_FAMILY_IGNORED,
 			VK_QUEUE_FAMILY_IGNORED,
-			swapchain.get_images()[frame],
+			swapchain.get_images()[image_num],
 			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
 		};
 
@@ -447,9 +466,7 @@ auto main(int argc, char** argv) -> int {
 			nullptr,
 			color_output_barrier
 		);
-
-		//frame = (frame + 1) % render_pass.get_vk_framebuffers().size();
-		frame = (frame + 1) % swapchain.get_image_views().size();
+		*/
 	});
 
 
@@ -457,6 +474,8 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device.get_vk_device(), vk::SemaphoreCreateInfo{}};
 	const auto [acq_result, image_index] = swapchain.get_vk_swapchain().acquireNextImage(std::numeric_limits<uint64_t>::max(), *image_acquired_semaphore);
+
+	image_num = image_index;
 
 	batch.run_commands(0);
 

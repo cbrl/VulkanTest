@@ -108,6 +108,21 @@ private:
 
 
 namespace util {
+
+[[nodiscard]]
+auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
+	return image{
+		device,
+		image_info{
+			.format = format,
+			.extent = vk::Extent3D{extent, 1},
+			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
+			.aspect_flags = vk::ImageAspectFlagBits::eDepth
+		}
+	};
+}
+
 [[nodiscard]]
 auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
 	return image{
