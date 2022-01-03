@@ -16,7 +16,7 @@ import vkw.util;
 
 export namespace vkw {
 
-template<typename T>
+template<typename T = void>
 class buffer;
 
 // The void specialization deals in bytes instead of types. It takes its max size in bytes, and the upload functions
@@ -57,8 +57,6 @@ public:
 		void* mapped = device_memory.mapMemory(0, data.size_bytes());
 		std::memcpy(mapped, data.data(), data.size_bytes());
         device_memory.unmapMemory();
-
-		size_bytes = data.size_bytes();
 	}
 
 	auto upload(
@@ -101,8 +99,6 @@ public:
 		if (result != vk::Result::eSuccess) {
 
 		}
-
-		size_bytes = data.size_bytes();
 	}
 
 /*
@@ -117,8 +113,6 @@ public:
 		batch.add_onetime_command([dest_buffer = *this->vk_buffer, staging = std::move(staging_buffer)](const vk::raii::CommandBuffer& command_buffer) {
 			command_buffer.copyBuffer(*staging.vk_buffer, dest_buffer, vk::BufferCopy{0, 0, data.size_bytes()});
 		});
-
-		size_bytes = data.size_bytes();
 	}
 */
 
@@ -142,7 +136,7 @@ private:
 
 // The non-void specializations inherit from the void specialization. They take the max size as a count of T, and their
 // upload functions take objects instead of bytes. These functions delegate to the void specialization's upload functions.
-template<typename T = void>
+template<typename T>
 class buffer : public buffer<void> {
 public:
 	buffer(
@@ -154,9 +148,10 @@ public:
 		buffer<void>(device, count * sizeof(T), usage, property_flags) {
 	}
 
+
 	[[nodiscard]]
 	auto get_size() const noexcept -> size_t {
-		return size;
+		return get_size_bytes() / sizeof(T);
 	}
 
 
@@ -166,7 +161,6 @@ public:
 
 	auto upload(std::span<const T> data) -> void {
 		buffer<void>::upload(std::as_bytes(data));
-		size = data.size();
 	}
 
 
@@ -186,7 +180,6 @@ public:
 		std::span<const T>           data
 	) -> void {
 		buffer<void>::upload(device, command_pool, queue, std::as_bytes(data));
-		size = data.size();
 	}
 
 
@@ -206,7 +199,6 @@ public:
 		std::span<const T>             data
 	) -> void {
 		buffer<void>::upload(device, command_buffer, queue, std::as_bytes(data));
-		size = data.size();
 	}
 
 /*
@@ -216,12 +208,8 @@ public:
 
 	auto stage_upload(command_batch& batch, std::span<const T> data) -> void {
 		buffer<void>::stage_upload(batch, std::as_bytes(data));
-		size = data.size();
 	}
 */
-
-private:
-	size_t size = 0;
 };
 
 } //namespace vkw
