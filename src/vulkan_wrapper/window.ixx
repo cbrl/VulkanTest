@@ -13,6 +13,7 @@ module;
 
 export module vkw.window;
 
+import vkw.instance;
 
 export namespace vkw {
 
@@ -128,15 +129,15 @@ class glfw_window : public window {
 
 public:
 	glfw_window(
+		const instance& ins,
 		const std::string& title,
 		const vk::Extent2D& size,
-		const vk::raii::Instance& instance,
 		const std::vector<std::pair<int, int>>& int_hints = {},
 		const std::vector<std::pair<int, std::string>>& string_hints = {},
 		GLFWmonitor* monitor = nullptr
 	) :
 		handle(create_handle(title, size, int_hints, string_hints, monitor)),
-		surface(create_surface(instance, handle)) {
+		surface(create_surface(ins.get_vk_instance(), handle)) {
 		glfwMakeContextCurrent(handle);
 
 		glfwSetWindowUserPointer(handle, this);

@@ -73,7 +73,7 @@ public:
 		std::span<const vk::ImageLayout> initial_layouts,
 		std::span<const vk::ImageLayout> final_layouts
 	) -> void {
-		set_frame_color_attachments(color_attachments.size(), info, images, initial_layouts, final_layouts);
+		set_frame_color_attachments(static_cast<uint32_t>(color_attachments.size()), info, images, initial_layouts, final_layouts);
 	}
 
 	auto set_depth_stencil_attachment(

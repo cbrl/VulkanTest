@@ -11,15 +11,14 @@ module;
 export module vkw.swapchain;
 
 import vkw.logical_device;
+import vkw.window;
 
 
 export namespace vkw {
 
 class swapchain {
 public:
-	swapchain(const logical_device& device, const vk::raii::SurfaceKHR& surface) :
-		device(device),
-		surface(surface) {
+	swapchain(const logical_device& device, const window& wind) : device(device), wind(wind) {
 	}
 
 	auto create(
@@ -80,8 +79,8 @@ private:
 		const auto& vk_device          = device.get().get_vk_device();
 		const auto& vk_physical_device = device.get().get_vk_physical_device();
 
-		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(*surface.get());
-		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(*surface.get());
+		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(*wind.get().get_surface());
+		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(*wind.get().get_surface());
 
 		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_mdoes);
 		const auto swapchain_extent = select_swapchain_extent(surface_capabilities, size);
@@ -90,7 +89,7 @@ private:
 
 		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagsKHR{},
-			*surface.get(),
+			*wind.get().get_surface(),
 			surface_capabilities.minImageCount,
 			format.format,
 			format.colorSpace,
@@ -197,7 +196,7 @@ private:
 	}
 
 	std::reference_wrapper<const logical_device> device;
-	std::reference_wrapper<const vk::raii::SurfaceKHR> surface;
+	std::reference_wrapper<const window> wind;
 
 	vk::SurfaceFormatKHR format = {};
 	vk::ImageUsageFlags usage = {};
