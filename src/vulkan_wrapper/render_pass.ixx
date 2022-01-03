@@ -101,8 +101,6 @@ private:
 		const render_pass_info& info
 	) -> std::vector<vk::raii::Framebuffer> {
 
-		assert(info.target_attachments.size() == info.attachment_descriptions.size());
-
 		auto framebuffers = std::vector<vk::raii::Framebuffer>{};
 		framebuffers.reserve(info.target_attachments.size());
 

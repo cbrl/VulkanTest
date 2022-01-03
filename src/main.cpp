@@ -147,10 +147,9 @@ auto main(int argc, char** argv) -> int {
 
 	pass_info.area_rect = vk::Rect2D{{0, 0}, window.get_window_size()};
 
-	pass_info.target_attachments = {
-		{*swapchain.get_image_views()[0], *depth_buffer.get_vk_image_view()},
-		{*swapchain.get_image_views()[1], *depth_buffer.get_vk_image_view()},
-	};
+	for (const auto& view : swapchain.get_image_views()) {
+		pass_info.target_attachments.push_back({*view, *depth_buffer.get_vk_image_view()});
+	}
 
 	pass_info.attachment_descriptions.push_back( //color attachment
 		vk::AttachmentDescription{
@@ -200,37 +199,23 @@ auto main(int argc, char** argv) -> int {
 
 	render_pass.set_area(vk::Rect2D{{0, 0}, window.get_window_size()});
 
-	render_pass.add_frame_color_attachments(
-		vk::RenderingAttachmentInfoKHR{
-			*swapchain.get_image_views()[0],
-			vk::ImageLayout::eColorAttachmentOptimal,
-			vk::ResolveModeFlagBits::eNone,
-			vk::ImageView{},
+	for (auto i : std::views::iota(size_t{0}, swapchain.get_images().size())) {
+		render_pass.add_frame_color_attachments(
+			vk::RenderingAttachmentInfoKHR{
+				*swapchain.get_image_views()[i],
+				vk::ImageLayout::eColorAttachmentOptimal,
+				vk::ResolveModeFlagBits::eNone,
+				vk::ImageView{},
+				vk::ImageLayout::eUndefined,
+				vk::AttachmentLoadOp::eClear,
+				vk::AttachmentStoreOp::eStore,
+				vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
+			},
+			swapchain.get_images()[i],
 			vk::ImageLayout::eUndefined,
-			vk::AttachmentLoadOp::eClear,
-			vk::AttachmentStoreOp::eStore,
-			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
-		},
-		swapchain.get_images()[0],
-		vk::ImageLayout::eUndefined,
-		vk::ImageLayout::ePresentSrcKHR
-	);
-
-	render_pass.add_frame_color_attachments(
-		vk::RenderingAttachmentInfoKHR{
-			*swapchain.get_image_views()[1],
-			vk::ImageLayout::eColorAttachmentOptimal,
-			vk::ResolveModeFlagBits::eNone,
-			vk::ImageView{},
-			vk::ImageLayout::eUndefined,
-			vk::AttachmentLoadOp::eClear,
-			vk::AttachmentStoreOp::eStore,
-			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
-		},
-		swapchain.get_images()[1],
-		vk::ImageLayout::eUndefined,
-		vk::ImageLayout::ePresentSrcKHR
-	);
+			vk::ImageLayout::ePresentSrcKHR
+		);
+	}
 
 	render_pass.set_depth_stencil_attachment(
 		vk::RenderingAttachmentInfoKHR{
@@ -243,10 +228,9 @@ auto main(int argc, char** argv) -> int {
 			vk::AttachmentStoreOp::eDontCare,
 			vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
 		},
-		*depth_buffer.get_vk_image(),
+		depth_buffer,
 		vk::ImageLayout::eUndefined,
-		vk::ImageLayout::ePresentSrcKHR,
-		(depth_buffer.get_info().aspect_flags & vk::ImageAspectFlagBits::eStencil) != vk::ImageAspectFlagBits{}
+		vk::ImageLayout::ePresentSrcKHR
 	);
 
 
