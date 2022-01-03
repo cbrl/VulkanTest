@@ -14,6 +14,59 @@ export namespace vkw {
 class render_pass_single {
 public:
 	[[nodiscard]]
+	auto get_area() const noexcept -> vk::Rect2D {
+		return area_rect;
+	}
+
+	auto set_area(vk::Rect2D area) -> void {
+		area_rect = area;
+	}
+
+	auto add_frame_color_attachments(
+		vk::RenderingAttachmentInfoKHR info,
+		vk::Image image,
+		vk::ImageLayout initial_layout,
+		vk::ImageLayout final_layout
+	) -> void {
+		add_frame_color_attachments(std::span{&info, 1}, std::span{&image, 1}, std::span{&initial_layout, 1}, std::span{&final_layout, 1});
+	}
+
+	auto add_frame_color_attachments(
+		std::span<const vk::RenderingAttachmentInfoKHR> info,
+		std::span<const vk::Image> images,
+		std::span<const vk::ImageLayout> initial_layouts,
+		std::span<const vk::ImageLayout> final_layouts
+	) -> void {
+		assert(info.size() == images.size() == initial_layouts.size() == final_layouts.size());
+
+		auto& attach_vec = color_attachments.emplace_back();
+		attach_vec.insert(attach_vec.end(), info.begin(), info.end());
+
+		auto& img_vec = color_images.emplace_back();
+		img_vec.insert(img_vec.end(), images.begin(), images.end());
+
+		auto& init_layouts_vec = color_initial_layouts.emplace_back();
+		init_layouts_vec.insert(init_layouts_vec.end(), initial_layouts.begin(), initial_layouts.end());
+
+		auto& final_layouts_vec = color_final_layouts.emplace_back();
+		final_layouts_vec.insert(final_layouts_vec.end(), final_layouts.begin(), final_layouts.end());
+	}
+
+	auto set_depth_stencil_attachment(
+		vk::RenderingAttachmentInfoKHR info,
+		vk::Image image,
+		vk::ImageLayout initial_layout,
+		vk::ImageLayout final_layout,
+		bool has_stencil_buffer = false
+	) -> void {
+		depth_stencil_attachment = info;
+		depth_stencil_image = image;
+		depth_initial_layout = initial_layout;
+		depth_final_layout = final_layout;
+		stencil_buffer = has_stencil_buffer;
+	}
+
+	[[nodiscard]]
 	auto get_rendering_info(uint32_t frame, vk::RenderingFlagsKHR flags = {}) const -> vk::RenderingInfoKHR {
 		return vk::RenderingInfoKHR{
 			flags,
@@ -26,25 +79,16 @@ public:
 		};
 	}
 
-	auto begin(uint32_t frame, const vk::raii::CommandBuffer& buffer, vk::Image color_image, vk::Image depth_stencil_image) const -> void {
-		begin(frame, buffer, std::span{&color_image, 1}, depth_stencil_image);
-	}
-
-	auto begin(
-		uint32_t frame,
-		const vk::raii::CommandBuffer& buffer,
-		std::span<const vk::Image> color_images,
-		vk::Image depth_stencil_image
-	) const -> void {
-		for (auto i : std::views::iota(size_t{0}, color_images.size())) {
+	auto begin(uint32_t frame, const vk::raii::CommandBuffer& buffer) const -> void {
+		for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
 			const auto color_barrier = vk::ImageMemoryBarrier{
 				vk::AccessFlagBits{},
 				vk::AccessFlagBits::eColorAttachmentWrite,
-				color_initial_layouts.at(frame).at(i),
-				color_attachments.at(frame).at(i).imageLayout,
+				color_initial_layouts[frame][i],
+				color_attachments[frame][i].imageLayout,
 				VK_QUEUE_FAMILY_IGNORED,
 				VK_QUEUE_FAMILY_IGNORED,
-				color_images[i],
+				color_images[frame][i],
 				vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
 			};
 
@@ -87,28 +131,18 @@ public:
 		buffer.beginRenderingKHR(get_rendering_info(frame));
 	}
 
-
-	auto end(uint32_t frame, const vk::raii::CommandBuffer& buffer, vk::Image color_image, vk::Image depth_stencil_image) const -> void {
-		end(frame, buffer, std::span{&color_image, 1}, depth_stencil_image);
-	}
-
-	auto end(
-		uint32_t frame,
-		const vk::raii::CommandBuffer& buffer,
-		std::span<const vk::Image> color_images,
-		vk::Image depth_stencil_image
-	) const -> void {
+	auto end(uint32_t frame, const vk::raii::CommandBuffer& buffer) const -> void {
 		buffer.endRenderingKHR();
 
-		for (auto i : std::views::iota(size_t{0}, color_images.size())) {
+		for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
 			const auto color_output_barrier = vk::ImageMemoryBarrier{
 				vk::AccessFlagBits::eColorAttachmentWrite,
 				vk::AccessFlagBits{},
-				color_attachments.at(frame).at(i).imageLayout,
-				color_final_layouts.at(frame).at(i),
+				color_attachments[frame][i].imageLayout,
+				color_final_layouts[frame][i],
 				VK_QUEUE_FAMILY_IGNORED,
 				VK_QUEUE_FAMILY_IGNORED,
-				color_images[i],
+				color_images[frame][i],
 				vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
 			};
 
@@ -150,11 +184,14 @@ public:
 	}
 
 
+private:
 	std::vector<std::vector<vk::RenderingAttachmentInfoKHR>> color_attachments;
+	std::vector<std::vector<vk::Image>> color_images;
 	std::vector<std::vector<vk::ImageLayout>> color_initial_layouts;
 	std::vector<std::vector<vk::ImageLayout>> color_final_layouts;
 
 	vk::RenderingAttachmentInfoKHR depth_stencil_attachment;
+	vk::Image depth_stencil_image;
 	vk::ImageLayout depth_initial_layout;
 	vk::ImageLayout depth_final_layout;
 	bool stencil_buffer = false;

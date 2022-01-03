@@ -29,6 +29,7 @@ import vkw;
 //     - Multi-pass render passes are most effective on mobile devices, which usually use tiled rendering. PC GPUs generally
 //       implement minimal rendering (or none for older GPUs), making a multi-pass technique less effective.
 //     - Perhaps a render_pass_single class encapsulating the minimal required information
+//   - Use vk::XXX instead of reference_wrapper<vk::raii::XXX> where the raii type is not needed
 
 auto main(int argc, char** argv) -> int {
 	// Instance
@@ -197,53 +198,56 @@ auto main(int argc, char** argv) -> int {
 
 	auto render_pass = vkw::render_pass_single{};
 
-	render_pass.area_rect = vk::Rect2D{{0, 0}, window.get_window_size()};
-	render_pass.color_attachments.resize(2);
-	render_pass.color_initial_layouts.resize(2);
-	render_pass.color_final_layouts.resize(2);
+	render_pass.set_area(vk::Rect2D{{0, 0}, window.get_window_size()});
 
-	render_pass.color_attachments[0].push_back(
+	render_pass.add_frame_color_attachments(
 		vk::RenderingAttachmentInfoKHR{
 			*swapchain.get_image_views()[0],
-			vk::ImageLayout::eColorAttachmentOptimal, //vk::ImageLayout::ePresentSrcKHR
+			vk::ImageLayout::eColorAttachmentOptimal,
 			vk::ResolveModeFlagBits::eNone,
 			vk::ImageView{},
 			vk::ImageLayout::eUndefined,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eStore,
 			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
-		}
+		},
+		swapchain.get_images()[0],
+		vk::ImageLayout::eUndefined,
+		vk::ImageLayout::ePresentSrcKHR
 	);
-	render_pass.color_initial_layouts[0].push_back(vk::ImageLayout::eUndefined);
-	render_pass.color_final_layouts[0].push_back(vk::ImageLayout::ePresentSrcKHR);
 
-	render_pass.color_attachments[1].push_back(
+	render_pass.add_frame_color_attachments(
 		vk::RenderingAttachmentInfoKHR{
 			*swapchain.get_image_views()[1],
-			vk::ImageLayout::eColorAttachmentOptimal, //vk::ImageLayout::ePresentSrcKHR
+			vk::ImageLayout::eColorAttachmentOptimal,
 			vk::ResolveModeFlagBits::eNone,
 			vk::ImageView{},
 			vk::ImageLayout::eUndefined,
 			vk::AttachmentLoadOp::eClear,
 			vk::AttachmentStoreOp::eStore,
 			vk::ClearValue{vk::ClearColorValue{std::array{0.2f, 0.2f, 0.2f, 1.0f}}}
-		}
-	);
-	render_pass.color_initial_layouts[1].push_back(vk::ImageLayout::eUndefined);
-	render_pass.color_final_layouts[1].push_back(vk::ImageLayout::ePresentSrcKHR);
-
-	render_pass.depth_stencil_attachment = vk::RenderingAttachmentInfoKHR{
-		*depth_buffer.get_vk_image_view(),
-		vk::ImageLayout::eDepthStencilAttachmentOptimal,
-		vk::ResolveModeFlagBits::eNone,
-		vk::ImageView{},
+		},
+		swapchain.get_images()[1],
 		vk::ImageLayout::eUndefined,
-		vk::AttachmentLoadOp::eClear,
-		vk::AttachmentStoreOp::eDontCare,
-		vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
-	};
-	render_pass.depth_initial_layout = vk::ImageLayout::eUndefined;
-	render_pass.depth_final_layout = vk::ImageLayout::ePresentSrcKHR;
+		vk::ImageLayout::ePresentSrcKHR
+	);
+
+	render_pass.set_depth_stencil_attachment(
+		vk::RenderingAttachmentInfoKHR{
+			*depth_buffer.get_vk_image_view(),
+			vk::ImageLayout::eDepthStencilAttachmentOptimal,
+			vk::ResolveModeFlagBits::eNone,
+			vk::ImageView{},
+			vk::ImageLayout::eUndefined,
+			vk::AttachmentLoadOp::eClear,
+			vk::AttachmentStoreOp::eDontCare,
+			vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
+		},
+		*depth_buffer.get_vk_image(),
+		vk::ImageLayout::eUndefined,
+		vk::ImageLayout::ePresentSrcKHR,
+		(depth_buffer.get_info().aspect_flags & vk::ImageAspectFlagBits::eStencil) != vk::ImageAspectFlagBits{}
+	);
 
 
 	// Vertex Buffer
@@ -369,8 +373,7 @@ auto main(int argc, char** argv) -> int {
 
 	batch.add_command([&](const vk::raii::CommandBuffer& buffer) mutable {
 		//buffer.beginRenderPass(render_pass.get_render_pass_begin_info(image_num), vk::SubpassContents::eInline);
-		//buffer.beginRenderingKHR(render_pass.get_rendering_info(image_num));
-		render_pass.begin(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
+		render_pass.begin(image_num, buffer);
 
 		buffer.setViewport(
 			0,
@@ -386,7 +389,7 @@ auto main(int argc, char** argv) -> int {
 		);
 
 		//buffer.setScissor(0, render_pass.get_pass_info().area_rect);
-		buffer.setScissor(0, render_pass.area_rect);
+		buffer.setScissor(0, render_pass.get_area());
 
 		pipeline.bind(buffer);
 
@@ -401,7 +404,7 @@ auto main(int argc, char** argv) -> int {
 		buffer.draw(vertex_buffer.get_size(), 1, 0, 0);
 
 		//buffer.endRenderPass();
-		render_pass.end(image_num, buffer, swapchain.get_images()[image_num], *depth_buffer.get_vk_image());
+		render_pass.end(image_num, buffer);
 	});
 
 
