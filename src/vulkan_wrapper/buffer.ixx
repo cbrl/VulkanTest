@@ -45,16 +45,21 @@ public:
 	}
 
 	[[nodiscard]]
+	auto get_usage() const noexcept -> vk::BufferUsageFlags {
+		return usage;
+	}
+
+	[[nodiscard]]
 	auto get_size_bytes() const noexcept -> size_t {
 		return size_bytes;
 	}
 
-	auto upload(std::span<const std::byte> data) -> void {
+	auto upload(std::span<const std::byte> data, vk::DeviceSize offset = 0) -> void {
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostCoherent);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
-		assert(data.size_bytes() <= size_bytes);
+		assert((data.size_bytes() + offset) <= size_bytes);
 		
-		void* mapped = device_memory.mapMemory(0, data.size_bytes());
+		void* mapped = device_memory.mapMemory(offset, data.size_bytes());
 		std::memcpy(mapped, data.data(), data.size_bytes());
         device_memory.unmapMemory();
 	}
@@ -63,31 +68,33 @@ public:
 		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
-		std::span<const std::byte>   data
+		std::span<const std::byte>   data,
+		vk::DeviceSize               offset = 0
 	) -> void {
 		auto command_buffers = vk::raii::CommandBuffers{
 			device.get_vk_device(),
 			vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}
 		};
 
-		upload(device, command_buffers.front(), queue, data);
+		upload(device, command_buffers.front(), queue, data, offset);
 	}
 
 	auto upload(
 		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
-		std::span<const std::byte>     data
+		std::span<const std::byte>     data,
+		vk::DeviceSize                 offset = 0
 	) -> void {
 		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
-		assert(data.size_bytes() <= size_bytes);
+		assert((data.size_bytes() + offset) <= size_bytes);
 
 		auto staging_buffer = buffer<void>{device, data.size_bytes(), vk::BufferUsageFlagBits::eTransferSrc};
 		staging_buffer.upload(data);
 
 		command_buffer.begin(vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-        command_buffer.copyBuffer(*staging_buffer.vk_buffer, *this->vk_buffer, vk::BufferCopy{0, 0, data.size_bytes()});
+        command_buffer.copyBuffer(*staging_buffer.vk_buffer, *this->vk_buffer, vk::BufferCopy{0, offset, data.size_bytes()});
         command_buffer.end();
 
 		const auto fence = vk::raii::Fence{device.get_vk_device(), vk::FenceCreateInfo{}};
@@ -97,12 +104,12 @@ public:
 		const auto result = device.get_vk_device().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 		if (result != vk::Result::eSuccess) {
-
+			// TODO: report error
 		}
 	}
 
 /*
-	auto stage_upload(command_batch& batch, std::span<const std::byte> data) -> void {
+	auto stage_upload(command_batch& batch, std::span<const std::byte> data, vk::DeviceSize offset = 0) -> void {
 		assert(usage & vk::BufferUsageFlagBits::eTransferDst);
 		assert(property_flags & vk::MemoryPropertyFlagBits::eDeviceLocal);
 		assert(data.size_bytes() <= size_bytes);
@@ -111,7 +118,7 @@ public:
 		staging_buffer.upload(data);
 
 		batch.add_onetime_command([dest_buffer = *this->vk_buffer, staging = std::move(staging_buffer)](const vk::raii::CommandBuffer& command_buffer) {
-			command_buffer.copyBuffer(*staging.vk_buffer, dest_buffer, vk::BufferCopy{0, 0, data.size_bytes()});
+			command_buffer.copyBuffer(*staging.vk_buffer, dest_buffer, vk::BufferCopy{0, offset, data.size_bytes()});
 		});
 	}
 */
@@ -155,12 +162,12 @@ public:
 	}
 
 
-	auto upload(const T& data) -> void {
-		upload(std::span{&data, 1});
+	auto upload(const T& data, size_t element_offset = 0) -> void {
+		upload(std::span{&data, 1}, element_offset);
 	}
 
-	auto upload(std::span<const T> data) -> void {
-		buffer<void>::upload(std::as_bytes(data));
+	auto upload(std::span<const T> data, size_t element_offset = 0) -> void {
+		buffer<void>::upload(std::as_bytes(data), element_offset * sizeof(T));
 	}
 
 
@@ -168,18 +175,20 @@ public:
 		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
-		const T&                     data
+		const T&                     data,
+		size_t                       element_offset = 0
 	) -> void {
-		upload(device, command_pool, queue, std::span{&data, 1});
+		upload(device, command_pool, queue, std::span{&data, 1}, element_offset);
 	}
 
 	auto upload(
 		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
-		std::span<const T>           data
+		std::span<const T>           data,
+		size_t                       element_offset = 0
 	) -> void {
-		buffer<void>::upload(device, command_pool, queue, std::as_bytes(data));
+		buffer<void>::upload(device, command_pool, queue, std::as_bytes(data), element_offset * sizeof(T));
 	}
 
 
@@ -187,27 +196,29 @@ public:
 		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
-		const T&                       data
+		const T&                       data,
+		size_t                         element_offset = 0
 	) -> void {
-		upload(device, command_buffer, queue, std::span{&data, 1});
+		upload(device, command_buffer, queue, std::span{&data, 1}, element_offset);
 	}
 
 	auto upload(
 		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
-		std::span<const T>             data
+		std::span<const T>             data,
+		size_t                         element_offset = 0
 	) -> void {
-		buffer<void>::upload(device, command_buffer, queue, std::as_bytes(data));
+		buffer<void>::upload(device, command_buffer, queue, std::as_bytes(data), element_offset * sizeof(T));
 	}
 
 /*
-	auto stage_upload(command_batch& batch, const T& data) -> void {
-		stage_upload(batch, std::span{&data, 1});
+	auto stage_upload(command_batch& batch, const T& data, size_t element_offset = 0) -> void {
+		stage_upload(batch, std::span{&data, 1}, element_offset);
 	}
 
-	auto stage_upload(command_batch& batch, std::span<const T> data) -> void {
-		buffer<void>::stage_upload(batch, std::as_bytes(data));
+	auto stage_upload(command_batch& batch, std::span<const T> data, size_t element_offset = 0) -> void {
+		buffer<void>::stage_upload(batch, std::as_bytes(data), element_offset * sizeof(T));
 	}
 */
 };

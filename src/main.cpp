@@ -28,6 +28,7 @@ import vkw;
 // TODO:
 //   - Use vk::XXX instead of reference_wrapper<vk::raii::XXX> where the raii type is not needed
 //   - Use descriptor indexing (core in Vulkan 1.2)
+//   - Integrate VMA
 
 auto main(int argc, char** argv) -> int {
 	// Instance
