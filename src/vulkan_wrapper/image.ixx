@@ -1,6 +1,8 @@
 module;
 
 #include <span>
+#include <tuple>
+
 #include <vulkan/vulkan_raii.hpp>
 
 export module vkw.image;
@@ -136,6 +138,79 @@ auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format f
 		}
 	};
 }
+
+
+[[nodiscard]]
+auto create_layout_barrier(
+	vk::Image            img,
+	vk::ImageAspectFlags aspect_flags,
+	vk::ImageLayout      old_layout,
+	vk::ImageLayout      new_layout
+) -> std::tuple<vk::PipelineStageFlags, vk::PipelineStageFlags, vk::ImageMemoryBarrier> {
+	const auto source_access_mask = [&]() -> vk::AccessFlags {
+		switch (old_layout) {
+			case vk::ImageLayout::eTransferDstOptimal: return vk::AccessFlagBits::eTransferWrite;
+			case vk::ImageLayout::ePreinitialized: return vk::AccessFlagBits::eHostWrite;
+			case vk::ImageLayout::eGeneral: return vk::AccessFlags{}; //source_access_mask is empty
+			case vk::ImageLayout::eUndefined: return vk::AccessFlags{};
+			default: return vk::AccessFlags{};
+		}
+	}();
+
+	const auto destination_access_mask = [&]() -> vk::AccessFlags {
+		switch (new_layout) {
+			case vk::ImageLayout::eColorAttachmentOptimal: return vk::AccessFlagBits::eColorAttachmentWrite;
+			case vk::ImageLayout::eDepthStencilAttachmentOptimal: return vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+			case vk::ImageLayout::eGeneral: return vk::AccessFlagBits{}; //empty destination_access_mask
+			case vk::ImageLayout::ePresentSrcKHR: return vk::AccessFlagBits{};
+			case vk::ImageLayout::eShaderReadOnlyOptimal: return vk::AccessFlagBits::eShaderRead;
+			case vk::ImageLayout::eTransferSrcOptimal: return vk::AccessFlagBits::eTransferRead;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::AccessFlagBits::eTransferWrite;
+			default: return vk::AccessFlagBits{};
+		}
+	}();
+
+	const auto source_stage = [&]() -> vk::PipelineStageFlags {
+		switch (old_layout) {
+			case vk::ImageLayout::eGeneral:
+			case vk::ImageLayout::ePreinitialized: return vk::PipelineStageFlagBits::eHost;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::PipelineStageFlagBits::eTransfer;
+			case vk::ImageLayout::eUndefined: return vk::PipelineStageFlagBits::eTopOfPipe;
+			default: return vk::PipelineStageFlags{};
+		}
+	}();
+
+	const auto destination_stage = [&]() -> vk::PipelineStageFlags {
+		switch (new_layout) {
+			case vk::ImageLayout::eColorAttachmentOptimal: return vk::PipelineStageFlagBits::eColorAttachmentOutput;
+			case vk::ImageLayout::eDepthStencilAttachmentOptimal: return vk::PipelineStageFlagBits::eEarlyFragmentTests;
+			case vk::ImageLayout::eGeneral: return vk::PipelineStageFlagBits::eHost;
+			case vk::ImageLayout::ePresentSrcKHR: return vk::PipelineStageFlagBits::eBottomOfPipe;
+			case vk::ImageLayout::eShaderReadOnlyOptimal: return vk::PipelineStageFlagBits::eFragmentShader;
+			case vk::ImageLayout::eTransferDstOptimal: return vk::PipelineStageFlags{};
+			case vk::ImageLayout::eTransferSrcOptimal: return vk::PipelineStageFlagBits::eTransfer;
+			default: return vk::PipelineStageFlags{};
+		}
+	}();
+
+	const auto barrier = vk::ImageMemoryBarrier{
+		source_access_mask,
+		destination_access_mask,
+		old_layout,
+		new_layout,
+		VK_QUEUE_FAMILY_IGNORED,
+		VK_QUEUE_FAMILY_IGNORED,
+		img,
+		vk::ImageSubresourceRange{aspect_flags, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_MIP_LEVELS}
+	};
+
+	return {source_stage, destination_stage, barrier};
+}
+
+auto create_layout_barrier(const image& img, vk::ImageLayout old_layout, vk::ImageLayout new_layout) {
+	return create_layout_barrier(*img.get_vk_image(), img.get_info().aspect_flags, old_layout, new_layout);
+}
+
 } //namespace util
 
 } //namespace vkw

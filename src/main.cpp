@@ -18,6 +18,7 @@
 #include <chrono>
 #include <limits>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <thread>
 #include <vector>
@@ -230,7 +231,7 @@ auto main(int argc, char** argv) -> int {
 		},
 		depth_buffer,
 		vk::ImageLayout::eUndefined,
-		vk::ImageLayout::ePresentSrcKHR
+		vk::ImageLayout::eDepthStencilAttachmentOptimal
 	);
 
 

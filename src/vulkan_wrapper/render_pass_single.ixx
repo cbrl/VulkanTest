@@ -54,6 +54,8 @@ public:
 
 		color_final_layouts.resize(std::max<size_t>(color_final_layouts.size(), frame + 1));
 		color_final_layouts[frame].insert(color_final_layouts[frame].end(), final_layouts.begin(), final_layouts.end());
+
+		rebuild_color_barriers();
 	}
 
 	auto add_frame_color_attachments(
@@ -80,6 +82,8 @@ public:
 		vk::ImageLayout initial_layout,
 		vk::ImageLayout final_layout
 	) -> void {
+		assert(img.get_info().aspect_flags & vk::ImageAspectFlagBits::eDepth);
+
 		const auto has_stencil = (img.get_info().aspect_flags & vk::ImageAspectFlagBits::eStencil) != vk::ImageAspectFlagBits{};
 		set_depth_stencil_attachment(info, *img.get_vk_image(), initial_layout, final_layout, has_stencil);
 	}
@@ -96,6 +100,8 @@ public:
 		depth_initial_layout     = initial_layout;
 		depth_final_layout       = final_layout;
 		stencil_buffer           = has_stencil_buffer;
+
+		rebuild_depth_barriers();
 	}
 
 	[[nodiscard]]
@@ -112,52 +118,22 @@ public:
 	}
 
 	auto begin(uint32_t frame, const vk::raii::CommandBuffer& buffer) const -> void {
-		for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
-			const auto color_barrier = vk::ImageMemoryBarrier{
-				vk::AccessFlagBits{},
-				vk::AccessFlagBits::eColorAttachmentWrite,
-				color_initial_layouts[frame][i],
-				color_attachments[frame][i].imageLayout,
-				VK_QUEUE_FAMILY_IGNORED,
-				VK_QUEUE_FAMILY_IGNORED,
-				color_images[frame][i],
-				vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-			};
-
-			buffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eTopOfPipe,
-				vk::PipelineStageFlagBits::eColorAttachmentOutput,
-				vk::DependencyFlagBits{},
-				nullptr,
-				nullptr,
-				color_barrier
-			);
-		}
-
-		const auto depth_barrier = vk::ImageMemoryBarrier{
-			vk::AccessFlagBits{},
-			vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-			depth_initial_layout,
-			depth_stencil_attachment.imageLayout,
-			VK_QUEUE_FAMILY_IGNORED,
-			VK_QUEUE_FAMILY_IGNORED,
-			depth_stencil_image,
-			vk::ImageSubresourceRange{
-				vk::ImageAspectFlagBits::eDepth | (stencil_buffer ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits{}),
-				0,
-				VK_REMAINING_MIP_LEVELS,
-				0,
-				VK_REMAINING_ARRAY_LAYERS
-			}
-		};
-
 		buffer.pipelineBarrier(
 			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
 			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
 			vk::DependencyFlagBits{},
 			nullptr,
 			nullptr,
-			depth_barrier
+			depth_stencil_begin_barrier
+		);
+
+		buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::DependencyFlagBits{},
+			nullptr,
+			nullptr,
+			color_begin_barriers[frame]
 		);
 
 		buffer.beginRenderingKHR(get_rendering_info(frame));
@@ -166,57 +142,82 @@ public:
 	auto end(uint32_t frame, const vk::raii::CommandBuffer& buffer) const -> void {
 		buffer.endRenderingKHR();
 
-		for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
-			const auto color_output_barrier = vk::ImageMemoryBarrier{
-				vk::AccessFlagBits::eColorAttachmentWrite,
-				vk::AccessFlagBits{},
-				color_attachments[frame][i].imageLayout,
-				color_final_layouts[frame][i],
-				VK_QUEUE_FAMILY_IGNORED,
-				VK_QUEUE_FAMILY_IGNORED,
-				color_images[frame][i],
-				vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-			};
-
-			buffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eColorAttachmentOutput,
-				vk::PipelineStageFlagBits::eBottomOfPipe,
-				vk::DependencyFlagBits{},
-				nullptr,
-				nullptr,
-				color_output_barrier
-			);
-		}
-
-		const auto depth_barrier = vk::ImageMemoryBarrier{
-			vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-			vk::AccessFlagBits{},
-			depth_stencil_attachment.imageLayout,
-			depth_final_layout,
-			VK_QUEUE_FAMILY_IGNORED,
-			VK_QUEUE_FAMILY_IGNORED,
-			depth_stencil_image,
-			vk::ImageSubresourceRange{
-				vk::ImageAspectFlagBits::eDepth | (stencil_buffer ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits{}),
-				0,
-				VK_REMAINING_MIP_LEVELS,
-				0,
-				VK_REMAINING_ARRAY_LAYERS
-			}
-		};
-
 		buffer.pipelineBarrier(
 			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
 			vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
 			vk::DependencyFlagBits{},
 			nullptr,
 			nullptr,
-			depth_barrier
+			depth_stencil_end_barrier
+		);
+
+		buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::PipelineStageFlagBits::eBottomOfPipe,
+			vk::DependencyFlagBits{},
+			nullptr,
+			nullptr,
+			color_end_barriers[frame]
 		);
 	}
 
 
 private:
+
+	auto rebuild_color_barriers() -> void {
+		color_begin_barriers.clear();
+		color_begin_barriers.resize(color_attachments.size());
+
+		for (auto frame : std::views::iota(size_t{0}, color_begin_barriers.size())) {
+			for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
+				color_begin_barriers[frame].push_back(
+					std::get<2>(vkw::util::create_layout_barrier(
+						color_images[frame][i],
+						vk::ImageAspectFlagBits::eColor,
+						color_initial_layouts[frame][i],
+						color_attachments[frame][i].imageLayout
+					))
+				);
+			}
+		}
+
+		color_end_barriers.clear();
+		color_end_barriers.resize(color_attachments.size());
+
+		for (auto frame : std::views::iota(size_t{0}, color_begin_barriers.size())) {
+			for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
+				color_end_barriers[frame].push_back(
+					std::get<2>(vkw::util::create_layout_barrier(
+						color_images[frame][i],
+						vk::ImageAspectFlagBits::eColor,
+						color_attachments[frame][i].imageLayout,
+						color_final_layouts[frame][i]
+					))
+				);
+			}
+		}
+	}
+
+	auto rebuild_depth_barriers() -> void {
+		const auto aspect_flags = vk::ImageAspectFlagBits::eDepth | (stencil_buffer ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits{});
+
+		depth_stencil_begin_barrier = std::get<2>(vkw::util::create_layout_barrier(
+			depth_stencil_image,
+			aspect_flags,
+			depth_initial_layout,
+			depth_stencil_attachment.imageLayout
+		));
+
+		depth_stencil_end_barrier = std::get<2>(vkw::util::create_layout_barrier(
+			depth_stencil_image,
+			aspect_flags,
+			depth_stencil_attachment.imageLayout,
+			depth_final_layout
+		));
+	}
+
+	vk::Rect2D area_rect;
+
 	std::vector<std::vector<vk::RenderingAttachmentInfoKHR>> color_attachments;
 	std::vector<std::vector<vk::Image>> color_images;
 	std::vector<std::vector<vk::ImageLayout>> color_initial_layouts;
@@ -228,7 +229,11 @@ private:
 	vk::ImageLayout depth_final_layout;
 	bool stencil_buffer = false;
 
-	vk::Rect2D area_rect;
+	vk::ImageMemoryBarrier depth_stencil_begin_barrier;
+	vk::ImageMemoryBarrier depth_stencil_end_barrier;
+
+	std::vector<std::vector<vk::ImageMemoryBarrier>> color_begin_barriers;
+	std::vector<std::vector<vk::ImageMemoryBarrier>> color_end_barriers;
 };
 
 } //namespace vkw
