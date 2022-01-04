@@ -14,16 +14,17 @@ import vkw.util;
 export namespace vkw {
 
 struct image_info {
-	vk::ImageType           type              = vk::ImageType::e2D;
-	vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
-	vk::Extent3D            extent;
-	vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
-	vk::ImageUsageFlags     usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
-	vk::ImageLayout         initial_layout    = vk::ImageLayout::eUndefined;
-	vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
-	vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
-	vk::ComponentMapping    component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-	vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
+	vk::ImageCreateFlags      flags             = vk::ImageCreateFlags{};
+	vk::ImageType             type              = vk::ImageType::e2D;
+	vk::Format                format            = vk::Format::eR8G8B8A8Srgb;
+	vk::Extent3D              extent;
+	vk::ImageTiling           tiling            = vk::ImageTiling::eOptimal;
+	vk::ImageUsageFlags       usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
+	vk::ImageLayout           initial_layout    = vk::ImageLayout::eUndefined;
+	vk::MemoryPropertyFlags   memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+	vk::ImageViewType         view_type         = vk::ImageViewType::e2D;
+	vk::ComponentMapping      component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+	vk::ImageSubresourceRange subresource_range = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
 };
 
 class image {
@@ -51,11 +52,16 @@ public:
 		return image_view;
 	}
 
+	[[nodiscard]]
+	auto get_device_memory() const noexcept -> const vk::raii::DeviceMemory& {
+		return device_memory;
+	}
+
 private:
 
 	static auto create_image(const logical_device& device, const image_info& info) -> vk::raii::Image {
 		const auto image_create_info = vk::ImageCreateInfo{
-			vk::ImageCreateFlags{},
+			info.flags,
 			info.type,
 			info.format,
 			info.extent,
@@ -86,15 +92,14 @@ private:
 		const logical_device&  device,
 		const vk::raii::Image& vk_image,
 		const image_info&      info
-	) -> vk::raii::ImageView {	
-		const auto image_subresource_range = vk::ImageSubresourceRange{info.aspect_flags, 0, 1, 0, 1};
+	) -> vk::raii::ImageView {
 		const auto image_view_create_info  = vk::ImageViewCreateInfo{
 			vk::ImageViewCreateFlags{},
 			*vk_image,
 			info.view_type,
 			info.format,
 			info.component_mapping,
-			image_subresource_range
+			info.subresource_range
 		};
 
 		return vk::raii::ImageView{device.get_vk_device(), image_view_create_info};
@@ -120,7 +125,7 @@ auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, c
 			.extent = vk::Extent3D{extent, 1},
 			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
 			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-			.aspect_flags = vk::ImageAspectFlagBits::eDepth
+			.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1}
 		}
 	};
 }
@@ -134,7 +139,7 @@ auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format f
 			.extent = vk::Extent3D{extent, 1},
 			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
 			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-			.aspect_flags = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil
+			.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1}
 		}
 	};
 }
@@ -208,7 +213,7 @@ auto create_layout_barrier(
 }
 
 auto create_layout_barrier(const image& img, vk::ImageLayout old_layout, vk::ImageLayout new_layout) {
-	return create_layout_barrier(*img.get_vk_image(), img.get_info().aspect_flags, old_layout, new_layout);
+	return create_layout_barrier(*img.get_vk_image(), img.get_info().subresource_range.aspectMask, old_layout, new_layout);
 }
 
 } //namespace util

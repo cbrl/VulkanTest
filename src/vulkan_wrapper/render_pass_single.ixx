@@ -82,9 +82,9 @@ public:
 		vk::ImageLayout initial_layout,
 		vk::ImageLayout final_layout
 	) -> void {
-		assert(img.get_info().aspect_flags & vk::ImageAspectFlagBits::eDepth);
+		assert(img.get_info().subresource_range.aspectMask & vk::ImageAspectFlagBits::eDepth);
 
-		const auto has_stencil = (img.get_info().aspect_flags & vk::ImageAspectFlagBits::eStencil) != vk::ImageAspectFlagBits{};
+		const auto has_stencil = (img.get_info().subresource_range.aspectMask & vk::ImageAspectFlagBits::eStencil) == vk::ImageAspectFlagBits::eStencil;
 		set_depth_stencil_attachment(info, *img.get_vk_image(), initial_layout, final_layout, has_stencil);
 	}
 

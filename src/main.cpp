@@ -26,7 +26,7 @@
 import vkw;
 
 // TODO:
-//   - Use vk::XXX instead of reference_wrapper<vk::raii::XXX> where the raii type is not needed
+//   - Separate vkw::image into vkw::image and vkw::image_view
 //   - Use descriptor indexing (core in Vulkan 1.2)
 //   - Integrate VMA
 
