@@ -32,7 +32,8 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/buffer.ixx
 	src/vulkan_wrapper/commands.ixx
 	src/vulkan_wrapper/debug.ixx
-	src/vulkan_wrapper/descriptor.ixx
+	src/vulkan_wrapper/descriptor_pool.ixx
+	src/vulkan_wrapper/descriptor_set.ixx
 	src/vulkan_wrapper/image.ixx
 	src/vulkan_wrapper/instance.ixx
 	src/vulkan_wrapper/logical_device.ixx

@@ -27,6 +27,7 @@ import vkw;
 
 // TODO:
 //   - Separate vkw::image into vkw::image and vkw::image_view
+//   - Add buffer_view
 //   - Use descriptor indexing (core in Vulkan 1.2)
 //   - Integrate VMA
 

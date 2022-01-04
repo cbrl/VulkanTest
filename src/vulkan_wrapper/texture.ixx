@@ -65,9 +65,9 @@ static auto create_image(
 	};
 	
 	if (needs_staging) {
-		image_nfo.tiling         = vk::ImageTiling::eOptimal;
-		image_nfo.usage          |= vk::ImageUsageFlagBits::eTransferDst;
-		image_nfo.initial_layout = vk::ImageLayout::eUndefined;
+		image_nfo.tiling            = vk::ImageTiling::eOptimal;
+		image_nfo.usage             |= vk::ImageUsageFlagBits::eTransferDst;
+		image_nfo.initial_layout    = vk::ImageLayout::eUndefined;
 		image_nfo.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 	}
 	else {
@@ -122,6 +122,16 @@ public:
 		layers(img_layers) {
 
 		needs_staging = is_staging_required(device, tex_info.format);
+	}
+
+	[[nodiscard]]
+	auto get_image() const -> const image& {
+		return image_data;
+	}
+
+	[[nodiscard]]
+	auto get_sampler() const -> const vk::raii::Sampler& {
+		return sampler;
 	}
 
 	auto upload(const logical_device& device, std::span<const std::byte> data) -> void {

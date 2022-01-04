@@ -9,7 +9,8 @@ module;
 export module vkw.pipeline_layout;
 
 import vkw.logical_device;
-import vkw.descriptor;
+import vkw.descriptor_pool;
+import vkw.descriptor_set;
 import vkw.util;
 
 
