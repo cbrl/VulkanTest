@@ -10,6 +10,7 @@ module;
 
 export module vkw.swapchain;
 
+import vkw.image;
 import vkw.logical_device;
 import vkw.window;
 
@@ -69,14 +70,13 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_image_views() const noexcept -> const std::vector<vk::raii::ImageView>& {
+	auto get_image_views() const noexcept -> const std::vector<image_view>& {
 		return image_views;
 	}
 
 private:
 
 	auto create_impl() -> void {
-		const auto& vk_device          = device.get().get_vk_device();
 		const auto& vk_physical_device = device.get().get_vk_physical_device();
 
 		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(*wind.get().get_surface());
@@ -97,7 +97,7 @@ private:
 			1,
 			usage,
 			vk::SharingMode::eExclusive,
-			{},
+			nullptr,
 			pre_transform,
 			composite_alpha,
 			present_mode,
@@ -114,7 +114,7 @@ private:
 			swap_chain_create_info.pQueueFamilyIndices   = shared_queues.data();
 		}
 
-		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(vk_device, swap_chain_create_info);
+		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device.get().get_vk_device(), swap_chain_create_info);
 
 		const auto swap_images = vk_swapchain->getImages();
 		images.reserve(swap_images.size());
@@ -134,7 +134,7 @@ private:
 				subresource_range
 			};
 
-			image_views.emplace_back(vk_device, image_view_create_info);
+			image_views.emplace_back(device, image_view_create_info);
 		}
 	}
 
@@ -206,7 +206,7 @@ private:
 
 	std::unique_ptr<vk::raii::SwapchainKHR> vk_swapchain;
 	std::vector<vk::Image> images;
-	std::vector<vk::raii::ImageView> image_views;
+	std::vector<image_view> image_views;
 };
 
 } //namespace vkw

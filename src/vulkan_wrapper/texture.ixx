@@ -75,17 +75,19 @@ auto create_image(const vkw::logical_device& device, const vkw::texture_info& te
 auto create_image_view(const vkw::logical_device& device, const vkw::image& img, const vkw::texture_info& tex_info) -> vkw::image_view {
 	auto view_nfo = tex_info.view;
 	
+	view_nfo.image = *img.get_vk_image();
+
 	view_nfo.subresourceRange.baseMipLevel   = 0;
 	view_nfo.subresourceRange.levelCount     = tex_info.image_layers.empty() ? 1 : static_cast<uint32_t>(tex_info.image_layers[0].size());
 
 	view_nfo.subresourceRange.baseArrayLayer = 0;
 	view_nfo.subresourceRange.layerCount     = std::max<uint32_t>(1, static_cast<uint32_t>(tex_info.image_layers.size()));
 
-	return vkw::image_view{device, img, view_nfo};
+	return vkw::image_view{device, view_nfo};
 }
 
 [[nodiscard]]
-auto create_sampler(const vkw::logical_device& device, const texture_info& tex_info) -> vk::raii::Sampler {
+auto create_sampler(const vkw::logical_device& device, const vkw::texture_info& tex_info) -> vk::raii::Sampler {
 	const auto features   = device.get_vk_physical_device().getFeatures();
 	const auto properties = device.get_vk_physical_device().getProperties();
 
@@ -93,14 +95,14 @@ auto create_sampler(const vkw::logical_device& device, const texture_info& tex_i
 		device.get_vk_device(),
 		vk::SamplerCreateInfo{
 			vk::SamplerCreateFlags{},
-			tex_info.mag_filter,
-			tex_info.min_filter,
-			tex_info.sampler_mipmap_mode,
-			tex_info.sampler_address_mode,
-			tex_info.sampler_address_mode,
-			tex_info.sampler_address_mode,
+			tex_info.sampler.mag_filter,
+			tex_info.sampler.min_filter,
+			tex_info.sampler.sampler_mipmap_mode,
+			tex_info.sampler.sampler_address_mode,
+			tex_info.sampler.sampler_address_mode,
+			tex_info.sampler.sampler_address_mode,
 			0.0f,
-			tex_info.anisotropy && features.samplerAnisotropy,
+			tex_info.sampler.anisotropy && features.samplerAnisotropy,
 			properties.limits.maxSamplerAnisotropy,
 			false,
 			vk::CompareOp::eNever,
@@ -157,38 +159,48 @@ public:
 	}
 
 	auto stage(const vk::raii::CommandBuffer& command_buffer) -> void {
-		auto copy_regions = std::vector<vk::BufferImageCopy>{};
+		if (not needs_staging) {
+			// Use the linear tiled image as a texture if possible
+			const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
+				image_data,
+				vk::ImageLayout::ePreinitialized,
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			);
 
-		if (not image_layers.empty()) {
-			auto offset = size_t{0};
-
-			for (uint32_t layer = 0; layer < image_layers.size(); ++layer) {
-				for (uint32_t level = 0; level < image_layers[layer].size(); ++level) {
-					copy_regions.push_back(vk::BufferImageCopy{
-						offset,
-						0,
-						0,
-						vk::ImageSubresourceLayers{image_data.get_info().subresource_range.aspectMask, level, layer, 1},
-						vk::Offset3D{0, 0, 0},
-						image_layers[layer][level].extent
-					});
-
-					offset += image_layers[layer][level].size;
-				}
-			}
+			command_buffer.pipelineBarrier(src_stage, dest_stage, vk::DependencyFlagBits{}, nullptr, nullptr, barrier);
 		}
 		else {
-			copy_regions.push_back(vk::BufferImageCopy{
-				0,
-				image_data.get_info().extent.width,
-				image_data.get_info().extent.height,
-				vk::ImageSubresourceLayers{image_data.get_info().subresource_range.aspectMask, 0, 0, 1},
-				vk::Offset3D{0, 0, 0},
-				image_data.get_info().extent
-			});
-		}
+			auto copy_regions = std::vector<vk::BufferImageCopy>{};
 
-		if (needs_staging) {
+			if (not image_layers.empty()) {
+				auto offset = vk::DeviceSize{0};
+
+				for (uint32_t layer = 0; layer < image_layers.size(); ++layer) {
+					for (uint32_t level = 0; level < image_layers[layer].size(); ++level) {
+						copy_regions.push_back(vk::BufferImageCopy{
+							offset,
+							0,
+							0,
+							vk::ImageSubresourceLayers{view.get_info().subresourceRange.aspectMask, level, layer, 1},
+							vk::Offset3D{0, 0, 0},
+							image_layers[layer][level].extent
+						});
+
+						offset += image_layers[layer][level].size;
+					}
+				}
+			}
+			else {
+				copy_regions.push_back(vk::BufferImageCopy{
+					0,
+					image_data.get_info().create_info.extent.width,
+					image_data.get_info().create_info.extent.height,
+					vk::ImageSubresourceLayers{view.get_info().subresourceRange.aspectMask, 0, 0, 1},
+					vk::Offset3D{0, 0, 0},
+					image_data.get_info().create_info.extent
+				});
+			}
+
 			// Since we're going to blit to the texture image, set its layout to eTransferDstOptimal
 			{
 				const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
@@ -218,17 +230,6 @@ public:
 				command_buffer.pipelineBarrier(src_stage, dest_stage, vk::DependencyFlagBits{}, nullptr, nullptr, barrier);
 			}
 		}
-		else
-		{
-			// Use the linear tiled image as a texture if possible
-			const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
-				image_data,
-				vk::ImageLayout::ePreinitialized,
-				vk::ImageLayout::eShaderReadOnlyOptimal
-			);
-
-			command_buffer.pipelineBarrier(src_stage, dest_stage, vk::DependencyFlagBits{}, nullptr, nullptr, barrier);
-		}
 	}
 
 private:
@@ -249,11 +250,18 @@ namespace util {
 [[nodiscard]]
 auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
 	auto info = texture_info{};
+
+	info.force_staging = true;
+
 	info.image.create_info.format = format;
 	info.image.create_info.extent = vk::Extent3D{extent, 1};
 	info.image.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
 	info.image.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
-	info.view.subresourceRange    = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1};
+
+	info.view.viewType         = vk::ImageViewType::e2D;
+	info.view.format           = format;
+	info.view.components       = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+	info.view.subresourceRange = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1};
 
 	return texture{device, info};
 }
@@ -261,11 +269,18 @@ auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, c
 [[nodiscard]]
 auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
 	auto info = texture_info{};
+
+	info.force_staging = true;
+
 	info.image.create_info.format = format;
 	info.image.create_info.extent = vk::Extent3D{extent, 1};
 	info.image.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
 	info.image.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
-	info.view.subresourceRange    = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1};
+
+	info.view.viewType         = vk::ImageViewType::e2D;
+	info.view.format           = format;
+	info.view.components       = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+	info.view.subresourceRange = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1};
 
 	return texture{device, info};
 }

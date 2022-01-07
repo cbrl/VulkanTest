@@ -198,12 +198,10 @@ auto find_memory_type(const vk::PhysicalDeviceMemoryProperties& memory_propertie
 	auto type_index = std::numeric_limits<uint32_t>::max();
 
 	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
-		if ((memory_type_bits & 1) && ((memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags)) {
+		if ((memory_type_bits & (1 << i)) && ((memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags)) {
 			type_index = i;
 			break;
 		}
-
-		memory_type_bits >>= 1;
 	}
 
 	assert(type_index != std::numeric_limits<uint32_t>::max());

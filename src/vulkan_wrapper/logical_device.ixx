@@ -204,8 +204,10 @@ private:
 	static auto process_config(const logical_device_info& info) -> logical_device_info {
 		auto output = info;
 
-		// Dynamic rendering required by render_pass_single
-		output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+		output.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+		output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
+
+		output.features.samplerAnisotropy = VK_TRUE;
 
 		return output;
 	}

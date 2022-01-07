@@ -40,12 +40,6 @@ auto create_memory(const vkw::logical_device& device, const vk::raii::Image& vk_
 	return memory;
 }
 
-[[nodiscard]]
-auto create_image_view(const vkw::logical_device& device, vk::Image img, vk::ImageViewCreateInfo info) -> vk::raii::ImageView {
-	info.image = img;
-	return vk::raii::ImageView{device.get_vk_device(), info};
-}
-
 
 export namespace vkw {
 
@@ -83,22 +77,14 @@ private:
 
 class image_view {
 public:
-	image_view(const logical_device& device, const image& img, const vk::ImageViewCreateInfo& info = default_view_info()) :
+	image_view(const logical_device& device, const vk::ImageViewCreateInfo& info) :
 		info(info),
-		img(img),
-		view(create_image_view(device, *img.get_vk_image(), info)) {
-
-		this->info.image = *img.get_vk_image();
+		view(device.get_vk_device(), info) {
 	}
 
 	[[nodiscard]]
 	auto get_info() const noexcept -> const vk::ImageViewCreateInfo& {
 		return info;
-	}
-
-	[[nodiscard]]
-	auto get_image() const noexcept -> const image& {
-		return img;
 	}
 
 	[[nodiscard]]
@@ -120,7 +106,6 @@ public:
 
 private:
 	vk::ImageViewCreateInfo info;
-	std::reference_wrapper<const image> img;
 	vk::raii::ImageView view;
 };
 

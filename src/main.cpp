@@ -70,9 +70,7 @@ auto main(int argc, char** argv) -> int {
 	// Logical Device
 	//--------------------------------------------------------------------------------
 	auto device_info = vkw::logical_device_info{
-		.physical_device = physical_device,
-		.features = {},
-		.extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME}
+		.physical_device = physical_device
 	};
 
 	// Add a graphics queue
@@ -203,7 +201,7 @@ auto main(int argc, char** argv) -> int {
 	for (auto i : std::views::iota(size_t{0}, swapchain.get_images().size())) {
 		render_pass.add_frame_color_attachments(
 			vk::RenderingAttachmentInfoKHR{
-				*swapchain.get_image_views()[i],
+				*swapchain.get_image_views()[i].get_vk_image_view(),
 				vk::ImageLayout::eColorAttachmentOptimal,
 				vk::ResolveModeFlagBits::eNone,
 				vk::ImageView{},
@@ -308,7 +306,7 @@ auto main(int argc, char** argv) -> int {
 	pipeline_info.layout        = &pipeline_layout;
 	pipeline_info.pass_details  = vkw::graphics_pipeline_info::render_pass_single_details{
 		.color_formats = {swapchain.get_format().format, swapchain.get_format().format},
-		.depth_stencil_format = depth_buffer.get_image().get_info().format
+		.depth_stencil_format = depth_buffer.get_image().get_info().create_info.format
 	};
 
 	pipeline_info.raster_state.frontFace = vk::FrontFace::eClockwise;

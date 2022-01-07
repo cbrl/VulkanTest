@@ -66,7 +66,7 @@ public:
 		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](const texture& tex) {
 			return vk::DescriptorImageInfo{
 				*tex.get_sampler(),
-				*tex.get_image().get_vk_image_view(),
+				*tex.get_image_view().get_vk_image_view(),
 				vk::ImageLayout::eShaderReadOnlyOptimal
 			};
 		}));
@@ -134,7 +134,7 @@ public:
 				for (const texture& tex : image_set->data) {
 					info_vec.push_back(vk::DescriptorImageInfo{
 						*tex.get_sampler(),
-						*tex.get_image().get_vk_image_view(),
+						*tex.get_image_view().get_vk_image_view(),
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}
