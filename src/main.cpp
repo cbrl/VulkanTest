@@ -26,7 +26,6 @@
 import vkw;
 
 // TODO:
-//   - Support multiple depth buffers in render_pass_single
 //   - Add buffer_view class to encapsulate vk::raii::BufferView
 //   - Use descriptor indexing (core in Vulkan 1.2)
 //   - Integrate VMA
