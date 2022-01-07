@@ -15,23 +15,28 @@ import vkw.logical_device;
 
 
 export namespace vkw {
-struct texture_info {
-	vk::ImageType           type              = vk::ImageType::e2D;
-	vk::Format              format            = vk::Format::eR8G8B8A8Srgb;
-	vk::Extent3D            extent;
-	vk::ImageUsageFlags     usage;
-	vk::ImageViewType       view_type         = vk::ImageViewType::e2D;
-	vk::ComponentMapping    component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-	vk::ImageAspectFlags    aspect_flags      = vk::ImageAspectFlagBits::eColor;
-	vk::SamplerAddressMode  sampler_mode      = vk::SamplerAddressMode::eRepeat;
-	bool                    anisotropy        = true;
-};
-
 struct mip_level {
 	vk::Extent3D extent;
 	size_t size;
 };
-}
+
+struct sampler_info {
+	vk::Filter              min_filter           = vk::Filter::eLinear;
+	vk::Filter              mag_filter           = vk::Filter::eLinear;
+	vk::SamplerMipmapMode   sampler_mipmap_mode  = vk::SamplerMipmapMode::eLinear;
+	vk::SamplerAddressMode  sampler_address_mode = vk::SamplerAddressMode::eRepeat;
+	bool                    anisotropy           = true;
+};
+
+struct texture_info {
+	image_info              image;
+	vk::ImageViewCreateInfo view;
+	sampler_info            sampler;
+
+	bool force_staging = false;
+	std::vector<std::vector<mip_level>> image_layers;
+};
+} //namespace vkw
 
 
 [[nodiscard]]
@@ -41,50 +46,46 @@ auto is_staging_required(const vkw::logical_device& device, vk::Format format) -
 }
 
 [[nodiscard]]
-static auto create_image(
-	const vkw::logical_device& device,
-	const vkw::texture_info& tex_info,
-	const std::vector<std::vector<vkw::mip_level>>& layers
-) -> vkw::image {
-	const auto needs_staging = is_staging_required(device, tex_info.format);
+auto create_image(const vkw::logical_device& device, const vkw::texture_info& tex_info) -> vkw::image {
+	const auto needs_staging = tex_info.force_staging || is_staging_required(device, tex_info.image.create_info.format);
 
-	auto image_nfo = vkw::image_info{
-		.type              = tex_info.type,
-		.format            = tex_info.format,
-		.extent            = tex_info.extent,
-		.usage             = tex_info.usage | vk::ImageUsageFlagBits::eSampled,
-		.view_type         = tex_info.view_type,
-		.component_mapping = tex_info.component_mapping,
-		.subresource_range = vk::ImageSubresourceRange{
-			tex_info.aspect_flags,
-			0,
-			(layers.empty() ? 1 : static_cast<uint32_t>(layers[0].size())),
-			0,
-			std::max<uint32_t>(1, static_cast<uint32_t>(layers.size()))
-		}
-	};
+	auto image_nfo = tex_info.image;
+	image_nfo.create_info.usage |= vk::ImageUsageFlagBits::eSampled;
 	
 	if (needs_staging) {
-		image_nfo.tiling            = vk::ImageTiling::eOptimal;
-		image_nfo.usage             |= vk::ImageUsageFlagBits::eTransferDst;
-		image_nfo.initial_layout    = vk::ImageLayout::eUndefined;
-		image_nfo.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
+		image_nfo.create_info.tiling        = vk::ImageTiling::eOptimal;
+		image_nfo.create_info.usage         |= vk::ImageUsageFlagBits::eTransferDst;
+		image_nfo.create_info.initialLayout = vk::ImageLayout::eUndefined;
+		image_nfo.memory_properties         = vk::MemoryPropertyFlagBits::eDeviceLocal;
 	}
 	else {
-		image_nfo.tiling            = vk::ImageTiling::eLinear;
-		image_nfo.initial_layout    = vk::ImageLayout::ePreinitialized;
-		image_nfo.memory_properties = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
+		image_nfo.create_info.tiling        = vk::ImageTiling::eLinear;
+		image_nfo.create_info.initialLayout = vk::ImageLayout::ePreinitialized;
+		image_nfo.memory_properties         = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
 	}
 
-	if (tex_info.view_type == vk::ImageViewType::eCube) {
-		image_nfo.flags |= vk::ImageCreateFlagBits::eCubeCompatible;
+	if (tex_info.view.viewType == vk::ImageViewType::eCube) {
+		image_nfo.create_info.flags |= vk::ImageCreateFlagBits::eCubeCompatible;
 	}
 
 	return vkw::image{device, image_nfo};
 }
 
 [[nodiscard]]
-static auto create_sampler(const vkw::logical_device& device, vk::SamplerAddressMode sampler_mode, bool anisotropy, float max_lod) -> vk::raii::Sampler {
+auto create_image_view(const vkw::logical_device& device, const vkw::image& img, const vkw::texture_info& tex_info) -> vkw::image_view {
+	auto view_nfo = tex_info.view;
+	
+	view_nfo.subresourceRange.baseMipLevel   = 0;
+	view_nfo.subresourceRange.levelCount     = tex_info.image_layers.empty() ? 1 : static_cast<uint32_t>(tex_info.image_layers[0].size());
+
+	view_nfo.subresourceRange.baseArrayLayer = 0;
+	view_nfo.subresourceRange.layerCount     = std::max<uint32_t>(1, static_cast<uint32_t>(tex_info.image_layers.size()));
+
+	return vkw::image_view{device, img, view_nfo};
+}
+
+[[nodiscard]]
+auto create_sampler(const vkw::logical_device& device, const texture_info& tex_info) -> vk::raii::Sampler {
 	const auto features   = device.get_vk_physical_device().getFeatures();
 	const auto properties = device.get_vk_physical_device().getProperties();
 
@@ -92,19 +93,19 @@ static auto create_sampler(const vkw::logical_device& device, vk::SamplerAddress
 		device.get_vk_device(),
 		vk::SamplerCreateInfo{
 			vk::SamplerCreateFlags{},
-			vk::Filter::eLinear,
-			vk::Filter::eLinear,
-			vk::SamplerMipmapMode::eLinear,
-			sampler_mode,
-			sampler_mode,
-			sampler_mode,
+			tex_info.mag_filter,
+			tex_info.min_filter,
+			tex_info.sampler_mipmap_mode,
+			tex_info.sampler_address_mode,
+			tex_info.sampler_address_mode,
+			tex_info.sampler_address_mode,
 			0.0f,
-			anisotropy && features.samplerAnisotropy,
+			tex_info.anisotropy && features.samplerAnisotropy,
 			properties.limits.maxSamplerAnisotropy,
 			false,
 			vk::CompareOp::eNever,
 			0.0f,
-			max_lod,
+			static_cast<float>(tex_info.image_layers.size()),
 			vk::BorderColor::eFloatOpaqueBlack,
 			false
 		}
@@ -116,21 +117,27 @@ export namespace vkw {
 
 class texture {
 public:
-	texture(const logical_device& device, const texture_info& tex_info, const std::vector<std::vector<mip_level>>& img_layers = {}) :
-		image_data(create_image(device, tex_info, img_layers)),
-		sampler(create_sampler(device, tex_info.sampler_mode, tex_info.anisotropy, static_cast<float>(img_layers.size()))),
-		layers(img_layers) {
+	texture(const logical_device& device, const texture_info& tex_info) :
+		image_data(create_image(device, tex_info)),
+		view(create_image_view(device, image_data, tex_info)),
+		sampler(create_sampler(device, tex_info)),
+		image_layers(tex_info.image_layers) {
 
-		needs_staging = is_staging_required(device, tex_info.format);
+		needs_staging = tex_info.force_staging || is_staging_required(device, tex_info.image.create_info.format);
 	}
 
 	[[nodiscard]]
-	auto get_image() const -> const image& {
+	auto get_image() const noexcept -> const image& {
 		return image_data;
 	}
 
 	[[nodiscard]]
-	auto get_sampler() const -> const vk::raii::Sampler& {
+	auto get_image_view() const noexcept -> const image_view& {
+		return view;
+	}
+
+	[[nodiscard]]
+	auto get_sampler() const noexcept -> const vk::raii::Sampler& {
 		return sampler;
 	}
 
@@ -152,21 +159,21 @@ public:
 	auto stage(const vk::raii::CommandBuffer& command_buffer) -> void {
 		auto copy_regions = std::vector<vk::BufferImageCopy>{};
 
-		if (not layers.empty()) {
+		if (not image_layers.empty()) {
 			auto offset = size_t{0};
 
-			for (uint32_t layer = 0; layer < layers.size(); ++layer) {
-				for (uint32_t level = 0; level < layers[layer].size(); ++level) {
+			for (uint32_t layer = 0; layer < image_layers.size(); ++layer) {
+				for (uint32_t level = 0; level < image_layers[layer].size(); ++level) {
 					copy_regions.push_back(vk::BufferImageCopy{
 						offset,
 						0,
 						0,
 						vk::ImageSubresourceLayers{image_data.get_info().subresource_range.aspectMask, level, layer, 1},
 						vk::Offset3D{0, 0, 0},
-						layers[layer][level].extent
+						image_layers[layer][level].extent
 					});
 
-					offset += layers[layer][level].size;
+					offset += image_layers[layer][level].size;
 				}
 			}
 		}
@@ -226,13 +233,42 @@ public:
 
 private:
 
-	image image_data;
+	image             image_data;
+	image_view        view;
 	vk::raii::Sampler sampler;
 
-	std::vector<std::vector<mip_level>> layers;
+	std::vector<std::vector<mip_level>> image_layers;
 
 	std::unique_ptr<buffer<void>> staging_buffer;
 	bool needs_staging;
 };
 
+
+namespace util {
+	
+[[nodiscard]]
+auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
+	auto info = texture_info{};
+	info.image.create_info.format = format;
+	info.image.create_info.extent = vk::Extent3D{extent, 1};
+	info.image.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+	info.image.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
+	info.view.subresourceRange    = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1};
+
+	return texture{device, info};
+}
+
+[[nodiscard]]
+auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
+	auto info = texture_info{};
+	info.image.create_info.format = format;
+	info.image.create_info.extent = vk::Extent3D{extent, 1};
+	info.image.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+	info.image.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
+	info.view.subresourceRange    = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1};
+
+	return texture{device, info};
+}
+
+} //namespace util
 } //namespace vkw

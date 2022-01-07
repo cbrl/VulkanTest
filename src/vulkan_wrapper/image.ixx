@@ -1,5 +1,6 @@
 module;
 
+#include <functional>
 #include <span>
 #include <tuple>
 
@@ -11,30 +12,49 @@ import vkw.logical_device;
 import vkw.util;
 
 
-export namespace vkw {
 
+export namespace vkw {
 struct image_info {
-	vk::ImageCreateFlags      flags             = vk::ImageCreateFlags{};
-	vk::ImageType             type              = vk::ImageType::e2D;
-	vk::Format                format            = vk::Format::eR8G8B8A8Srgb;
-	vk::Extent3D              extent;
-	vk::ImageTiling           tiling            = vk::ImageTiling::eOptimal;
-	vk::ImageUsageFlags       usage             = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
-	vk::ImageLayout           initial_layout    = vk::ImageLayout::eUndefined;
-	vk::MemoryPropertyFlags   memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
-	vk::ImageViewType         view_type         = vk::ImageViewType::e2D;
-	vk::ComponentMapping      component_mapping = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-	vk::ImageSubresourceRange subresource_range = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+	image_info() {
+		create_info.imageType     = vk::ImageType::e2D;
+		create_info.format        = vk::Format::eR8G8B8A8Srgb;
+		create_info.mipLevels     = 1;
+		create_info.arrayLayers   = 1;
+		create_info.samples       = vk::SampleCountFlagBits::e1;
+		create_info.tiling        = vk::ImageTiling::eOptimal;
+		create_info.usage         = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
+		create_info.sharingMode   = vk::SharingMode::eExclusive;
+		create_info.initialLayout = vk::ImageLayout::eUndefined;
+	}
+
+	vk::ImageCreateInfo create_info;
+	vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 };
+}
+
+
+[[nodiscard]]
+auto create_memory(const vkw::logical_device& device, const vk::raii::Image& vk_image, vk::MemoryPropertyFlags memory_properties) -> vk::raii::DeviceMemory {
+	auto memory = device.create_device_memory(vk_image.getMemoryRequirements(), memory_properties);
+	vk_image.bindMemory(*memory, 0);
+	return memory;
+}
+
+[[nodiscard]]
+auto create_image_view(const vkw::logical_device& device, vk::Image img, vk::ImageViewCreateInfo info) -> vk::raii::ImageView {
+	info.image = img;
+	return vk::raii::ImageView{device.get_vk_device(), info};
+}
+
+
+export namespace vkw {
 
 class image {
 public:
 	image(const logical_device& device, const image_info& info) :
 		info(info),
-		vk_image(create_image(device, info)),
-		device_memory(create_memory(device, vk_image, info.memory_properties)),
-		image_view(create_view(device, vk_image, info)) {
-
+		vk_image(device.get_vk_device(), info.create_info),
+		device_memory(create_memory(device, vk_image, info.memory_properties)) {
 	}
 
 	[[nodiscard]]
@@ -48,102 +68,94 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_image_view() const noexcept -> const vk::raii::ImageView& {
-		return image_view;
-	}
-
-	[[nodiscard]]
 	auto get_device_memory() const noexcept -> const vk::raii::DeviceMemory& {
 		return device_memory;
 	}
 
 private:
 
-	static auto create_image(const logical_device& device, const image_info& info) -> vk::raii::Image {
-		const auto image_create_info = vk::ImageCreateInfo{
-			info.flags,
-			info.type,
-			info.format,
-			info.extent,
-			1,
-			1,
-			vk::SampleCountFlagBits::e1,
-			info.tiling,
-			info.usage,
-			vk::SharingMode::eExclusive,
-			{},
-			info.initial_layout
-		};
-
-		return vk::raii::Image{device.get_vk_device(), image_create_info};
-	}
-
-	static auto create_memory(
-		const logical_device&   device,
-		const vk::raii::Image&  vk_image,
-		vk::MemoryPropertyFlags memory_properties
-	) -> vk::raii::DeviceMemory {
-		auto memory = device.create_device_memory(vk_image.getMemoryRequirements(), memory_properties);
-		vk_image.bindMemory(*memory, 0);
-		return memory;
-	}
-
-	static auto create_view(
-		const logical_device&  device,
-		const vk::raii::Image& vk_image,
-		const image_info&      info
-	) -> vk::raii::ImageView {
-		const auto image_view_create_info  = vk::ImageViewCreateInfo{
-			vk::ImageViewCreateFlags{},
-			*vk_image,
-			info.view_type,
-			info.format,
-			info.component_mapping,
-			info.subresource_range
-		};
-
-		return vk::raii::ImageView{device.get_vk_device(), image_view_create_info};
-	}
-
-
 	image_info info;
 
 	vk::raii::Image        vk_image;
 	vk::raii::DeviceMemory device_memory;
-	vk::raii::ImageView    image_view;
+};
+
+
+class image_view {
+public:
+	image_view(const logical_device& device, const image& img, const vk::ImageViewCreateInfo& info = default_view_info()) :
+		info(info),
+		img(img),
+		view(create_image_view(device, *img.get_vk_image(), info)) {
+
+		this->info.image = *img.get_vk_image();
+	}
+
+	[[nodiscard]]
+	auto get_info() const noexcept -> const vk::ImageViewCreateInfo& {
+		return info;
+	}
+
+	[[nodiscard]]
+	auto get_image() const noexcept -> const image& {
+		return img;
+	}
+
+	[[nodiscard]]
+	auto get_vk_image_view() const noexcept -> const vk::raii::ImageView& {
+		return view;
+	}
+
+	[[nodiscard]]
+	static constexpr auto default_view_info() noexcept -> vk::ImageViewCreateInfo {
+		return vk::ImageViewCreateInfo{
+			vk::ImageViewCreateFlags{},
+			vk::Image{},
+			vk::ImageViewType::e2D,
+			vk::Format::eR8G8B8A8Srgb,
+			vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA},
+			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
+		};
+	}
+
+private:
+	vk::ImageViewCreateInfo info;
+	std::reference_wrapper<const image> img;
+	vk::raii::ImageView view;
 };
 
 
 namespace util {
 
+// This does not handle multi-planar formats
 [[nodiscard]]
-auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
-	return image{
-		device,
-		image_info{
-			.format = format,
-			.extent = vk::Extent3D{extent, 1},
-			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
-			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-			.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1}
+constexpr auto format_to_aspect(vk::Format format) noexcept -> vk::ImageAspectFlags {
+	switch (format) {
+		case vk::Format::eUndefined: {
+			return {};
 		}
-	};
-}
 
-[[nodiscard]]
-auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> image {
-	return image{
-		device,
-		image_info{
-			.format = format,
-			.extent = vk::Extent3D{extent, 1},
-			.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
-			.memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-			.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1}
+		case vk::Format::eD16Unorm:
+		case vk::Format::eD32Sfloat:
+		case vk::Format::eX8D24UnormPack32: {
+			return vk::ImageAspectFlagBits::eDepth;
 		}
-	};
-}
 
+		case vk::Format::eS8Uint: {
+			return vk::ImageAspectFlagBits::eStencil;
+		}
+
+		case vk::Format::eD16UnormS8Uint:
+		case vk::Format::eD24UnormS8Uint:
+		case vk::Format::eD32SfloatS8Uint: {
+			return vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+		}
+
+		default: {
+			return vk::ImageAspectFlagBits::eColor;
+		}
+	}
+}
 
 [[nodiscard]]
 auto create_layout_barrier(
@@ -213,9 +225,8 @@ auto create_layout_barrier(
 }
 
 auto create_layout_barrier(const image& img, vk::ImageLayout old_layout, vk::ImageLayout new_layout) {
-	return create_layout_barrier(*img.get_vk_image(), img.get_info().subresource_range.aspectMask, old_layout, new_layout);
+	return create_layout_barrier(*img.get_vk_image(), format_to_aspect(img.get_info().create_info.format), old_layout, new_layout);
 }
 
 } //namespace util
-
 } //namespace vkw

@@ -37,6 +37,16 @@ public:
 	    property_flags(property_flags) {
 
 		vk_buffer.bindMemory(*device_memory, 0);
+
+		if (property_flags & vk::MemoryPropertyFlagBits::eHostVisible) {
+			mapped_memory = device_memory.mapMemory(0, get_size_bytes());
+		}
+	}
+
+	virtual ~buffer() {
+		if (mapped_memory) {
+			device_memory.unmapMemory();
+		}
 	}
 
 	[[nodiscard]]
@@ -59,9 +69,7 @@ public:
 		assert(property_flags & vk::MemoryPropertyFlagBits::eHostVisible);
 		assert((data.size_bytes() + offset) <= size_bytes);
 		
-		void* mapped = device_memory.mapMemory(offset, data.size_bytes());
-		std::memcpy(mapped, data.data(), data.size_bytes());
-        device_memory.unmapMemory();
+		std::memcpy(reinterpret_cast<std::byte*>(mapped_memory) + offset, data.data(), data.size_bytes());
 	}
 
 	auto upload(
@@ -138,6 +146,8 @@ private:
 	size_t                  size_bytes;
 	vk::BufferUsageFlags    usage;
 	vk::MemoryPropertyFlags property_flags;
+
+	void* mapped_memory = nullptr;
 };
 
 

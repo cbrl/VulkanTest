@@ -26,10 +26,11 @@
 import vkw;
 
 // TODO:
-//   - Separate vkw::image into vkw::image and vkw::image_view
-//   - Add buffer_view
+//   - Support multiple depth buffers in render_pass_single
+//   - Add buffer_view class to encapsulate vk::raii::BufferView
 //   - Use descriptor indexing (core in Vulkan 1.2)
 //   - Integrate VMA
+//   - Don't construct a unique sampler for each texture
 
 auto main(int argc, char** argv) -> int {
 	// Instance
@@ -219,7 +220,7 @@ auto main(int argc, char** argv) -> int {
 
 	render_pass.set_depth_stencil_attachment(
 		vk::RenderingAttachmentInfoKHR{
-			*depth_buffer.get_vk_image_view(),
+			*depth_buffer.get_image_view().get_vk_image_view(),
 			vk::ImageLayout::eDepthStencilAttachmentOptimal,
 			vk::ResolveModeFlagBits::eNone,
 			vk::ImageView{},
@@ -228,7 +229,7 @@ auto main(int argc, char** argv) -> int {
 			vk::AttachmentStoreOp::eDontCare,
 			vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
 		},
-		depth_buffer,
+		depth_buffer.get_image(),
 		vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eDepthStencilAttachmentOptimal
 	);
@@ -307,7 +308,7 @@ auto main(int argc, char** argv) -> int {
 	pipeline_info.layout        = &pipeline_layout;
 	pipeline_info.pass_details  = vkw::graphics_pipeline_info::render_pass_single_details{
 		.color_formats = {swapchain.get_format().format, swapchain.get_format().format},
-		.depth_stencil_format = depth_buffer.get_info().format
+		.depth_stencil_format = depth_buffer.get_image().get_info().format
 	};
 
 	pipeline_info.raster_state.frontFace = vk::FrontFace::eClockwise;
