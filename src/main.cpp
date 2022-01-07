@@ -131,11 +131,21 @@ auto main(int argc, char** argv) -> int {
 
 	// Depth Buffer
 	//--------------------------------------------------------------------------------
+	/*
 	auto depth_buffer = vkw::util::create_depth_buffer(
 		logical_device,
 		vkw::util::select_depth_format(logical_device.get_vk_physical_device()).value(),
 		window.get_window_size()
 	);
+	*/
+	auto depth_buffers = std::vector<vkw::texture>{};
+	for (auto _ : std::views::iota(size_t{0}, swapchain.get_images().size())) {
+		depth_buffers.push_back(vkw::util::create_depth_buffer(
+			logical_device,
+			vkw::util::select_depth_format(logical_device.get_vk_physical_device()).value(),
+			window.get_window_size()
+		));
+	}
 
 
 	// Render Pass
@@ -214,23 +224,23 @@ auto main(int argc, char** argv) -> int {
 			vk::ImageLayout::eUndefined,
 			vk::ImageLayout::ePresentSrcKHR
 		);
-	}
 
-	render_pass.set_depth_stencil_attachment(
-		vk::RenderingAttachmentInfoKHR{
-			*depth_buffer.get_image_view().get_vk_image_view(),
-			vk::ImageLayout::eDepthStencilAttachmentOptimal,
-			vk::ResolveModeFlagBits::eNone,
-			vk::ImageView{},
+		render_pass.add_depth_stencil_attachment(
+			vk::RenderingAttachmentInfoKHR{
+				*depth_buffers[i].get_image_view().get_vk_image_view(),
+				vk::ImageLayout::eDepthStencilAttachmentOptimal,
+				vk::ResolveModeFlagBits::eNone,
+				vk::ImageView{},
+				vk::ImageLayout::eUndefined,
+				vk::AttachmentLoadOp::eClear,
+				vk::AttachmentStoreOp::eDontCare,
+				vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
+			},
+			depth_buffers[i].get_image(),
 			vk::ImageLayout::eUndefined,
-			vk::AttachmentLoadOp::eClear,
-			vk::AttachmentStoreOp::eDontCare,
-			vk::ClearValue{vk::ClearDepthStencilValue{1.0f, 0}}		
-		},
-		depth_buffer.get_image(),
-		vk::ImageLayout::eUndefined,
-		vk::ImageLayout::eDepthStencilAttachmentOptimal
-	);
+			vk::ImageLayout::eDepthStencilAttachmentOptimal
+		);
+	}
 
 
 	// Vertex Buffer
@@ -305,8 +315,8 @@ auto main(int argc, char** argv) -> int {
 	pipeline_info.shader_stages = {std::cref(vertex_stage), std::cref(fragment_stage)};
 	pipeline_info.layout        = &pipeline_layout;
 	pipeline_info.pass_details  = vkw::graphics_pipeline_info::render_pass_single_details{
-		.color_formats = {swapchain.get_format().format, swapchain.get_format().format},
-		.depth_stencil_format = depth_buffer.get_image().get_info().create_info.format
+		.color_formats = {swapchain.get_format().format},
+		.depth_stencil_format = depth_buffers[0].get_image().get_info().create_info.format
 	};
 
 	pipeline_info.raster_state.frontFace = vk::FrontFace::eClockwise;
