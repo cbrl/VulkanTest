@@ -42,6 +42,7 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/queue.ixx
 	src/vulkan_wrapper/render_pass.ixx
 	src/vulkan_wrapper/render_pass_single.ixx
+	src/vulkan_wrapper/sampler.ixx
 	src/vulkan_wrapper/shader.ixx
 	src/vulkan_wrapper/subpass.ixx
 	src/vulkan_wrapper/swapchain.ixx

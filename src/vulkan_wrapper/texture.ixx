@@ -20,21 +20,11 @@ struct mip_level {
 	size_t size;
 };
 
-struct sampler_info {
-	vk::Filter              min_filter           = vk::Filter::eLinear;
-	vk::Filter              mag_filter           = vk::Filter::eLinear;
-	vk::SamplerMipmapMode   sampler_mipmap_mode  = vk::SamplerMipmapMode::eLinear;
-	vk::SamplerAddressMode  sampler_address_mode = vk::SamplerAddressMode::eRepeat;
-	bool                    anisotropy           = true;
-};
-
 struct texture_info {
-	image_info              image;
+	image_info image;
 	vk::ImageViewCreateInfo view;
-	sampler_info            sampler;
-
-	bool force_staging = false;
 	std::vector<std::vector<mip_level>> image_layers;
+	bool force_staging = false;
 };
 } //namespace vkw
 
@@ -86,34 +76,6 @@ auto create_image_view(const vkw::logical_device& device, const vkw::image& img,
 	return vkw::image_view{device, view_nfo};
 }
 
-[[nodiscard]]
-auto create_sampler(const vkw::logical_device& device, const vkw::texture_info& tex_info) -> vk::raii::Sampler {
-	const auto features   = device.get_vk_physical_device().getFeatures();
-	const auto properties = device.get_vk_physical_device().getProperties();
-
-	return vk::raii::Sampler{
-		device.get_vk_device(),
-		vk::SamplerCreateInfo{
-			vk::SamplerCreateFlags{},
-			tex_info.sampler.mag_filter,
-			tex_info.sampler.min_filter,
-			tex_info.sampler.sampler_mipmap_mode,
-			tex_info.sampler.sampler_address_mode,
-			tex_info.sampler.sampler_address_mode,
-			tex_info.sampler.sampler_address_mode,
-			0.0f,
-			tex_info.sampler.anisotropy && features.samplerAnisotropy,
-			properties.limits.maxSamplerAnisotropy,
-			false,
-			vk::CompareOp::eNever,
-			0.0f,
-			static_cast<float>(tex_info.image_layers.size()),
-			vk::BorderColor::eFloatOpaqueBlack,
-			false
-		}
-	};
-}
-
 
 export namespace vkw {
 
@@ -122,7 +84,6 @@ public:
 	texture(const logical_device& device, const texture_info& tex_info) :
 		image_data(create_image(device, tex_info)),
 		view(create_image_view(device, image_data, tex_info)),
-		sampler(create_sampler(device, tex_info)),
 		image_layers(tex_info.image_layers) {
 
 		needs_staging = tex_info.force_staging || is_staging_required(device, tex_info.image.create_info.format);
@@ -136,11 +97,6 @@ public:
 	[[nodiscard]]
 	auto get_image_view() const noexcept -> const image_view& {
 		return view;
-	}
-
-	[[nodiscard]]
-	auto get_sampler() const noexcept -> const vk::raii::Sampler& {
-		return sampler;
 	}
 
 	auto upload(const logical_device& device, std::span<const std::byte> data) -> void {
@@ -234,9 +190,8 @@ public:
 
 private:
 
-	image             image_data;
-	image_view        view;
-	vk::raii::Sampler sampler;
+	image      image_data;
+	image_view view;
 
 	std::vector<std::vector<mip_level>> image_layers;
 

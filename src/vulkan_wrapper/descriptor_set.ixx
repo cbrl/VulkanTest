@@ -14,6 +14,7 @@ export module vkw.descriptor_set;
 
 import vkw.buffer;
 import vkw.logical_device;
+import vkw.sampler;
 import vkw.texture;
 import vkw.util;
 
@@ -28,11 +29,12 @@ struct write_descriptor_set {
 export namespace vkw {
 
 using write_image_set        = write_descriptor_set<texture>;
+using write_sampler_set      = write_descriptor_set<sampler>;
 using write_buffer_set       = write_descriptor_set<buffer<void>>;
 using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
 
 class descriptor_set {
-	using write_set_variant = std::variant<write_image_set, write_buffer_set, write_texel_buffer_set>;
+	using write_set_variant = std::variant<write_image_set, write_sampler_set, write_buffer_set, write_texel_buffer_set>;
 
 	struct descriptor_binding_comparator {
 		using is_transparent = void;
@@ -65,7 +67,7 @@ public:
 	auto update(const logical_device& device, const write_image_set& images) -> void {
 		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](const texture& tex) {
 			return vk::DescriptorImageInfo{
-				*tex.get_sampler(),
+				vk::Sampler{},
 				*tex.get_image_view().get_vk_image_view(),
 				vk::ImageLayout::eShaderReadOnlyOptimal
 			};
@@ -77,6 +79,26 @@ public:
 			0,
 			get_binding(images.binding).descriptorType,
 			texture_infos,
+		};
+
+		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+	}
+
+	auto update(const logical_device& device, const write_sampler_set& samplers) -> void {
+		const auto sampler_infos = vkw::util::to_vector(std::views::transform(samplers.data, [](const sampler& samp) {
+			return vk::DescriptorImageInfo{
+				*samp.get_vk_sampler(),
+				vk::ImageView{},
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			};
+		}));
+
+		const auto write_descriptor_set = vk::WriteDescriptorSet{
+			*handle,
+			samplers.binding,
+			0,
+			get_binding(samplers.binding).descriptorType,
+			sampler_infos,
 		};
 
 		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
@@ -117,6 +139,7 @@ public:
 
 	auto update(const logical_device& device, const std::vector<write_set_variant>& buffer_data) -> void {
 		auto image_infos        = std::vector<std::vector<vk::DescriptorImageInfo>>{};
+		auto sampler_infos      = std::vector<std::vector<vk::DescriptorImageInfo>>{};
 		auto buffer_infos       = std::vector<std::vector<vk::DescriptorBufferInfo>>{};
 		auto texel_buffer_infos = std::vector<std::vector<vk::BufferView>>{};
 
@@ -133,8 +156,23 @@ public:
 				auto& info_vec = image_infos.emplace_back();
 				for (const texture& tex : image_set->data) {
 					info_vec.push_back(vk::DescriptorImageInfo{
-						*tex.get_sampler(),
+						vk::Sampler{},
 						*tex.get_image_view().get_vk_image_view(),
+						vk::ImageLayout::eShaderReadOnlyOptimal
+					});
+				}
+
+				set_info.setImageInfo(info_vec);
+			}
+			else if (const auto* sampler_set = std::get_if<write_sampler_set>(&write_set)) {
+				set_info.setDstBinding(sampler_set->binding);
+				set_info.setDescriptorType(get_binding(sampler_set->binding).descriptorType);
+
+				auto& info_vec = sampler_infos.emplace_back();
+				for (const sampler& samp : sampler_set->data) {
+					info_vec.push_back(vk::DescriptorImageInfo{
+						*samp.get_vk_sampler(),
+						vk::ImageView{},
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}

@@ -32,8 +32,6 @@ import vkw;
 //     - Configurable descriptor counts with large defaults
 //     - Track free indices and assign them at resource creation
 //   - Integrate VMA
-//   - Don't construct a unique sampler for each texture
-//     - Possibly remove the sampler from the texture class completely
 
 auto main(int argc, char** argv) -> int {
 	// Instance
