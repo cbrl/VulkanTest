@@ -12,52 +12,52 @@ export module vkw.debug;
 export namespace vkw::debug {
 
 VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
-	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void*                                       pUserData
+	VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+	VkDebugUtilsMessageTypeFlagsEXT             message_types,
+	const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+	void*                                       user_data
 ) -> VkBool32 {
-	(void)pUserData;
+	(void)user_data;
 
 #if !defined(NDEBUG)
-	if (pCallbackData->messageIdNumber == 648835635) {
+	if (callback_data->messageIdNumber == 648835635) {
 		// UNASSIGNED-khronos-Validation-debug-build-warning-message
 		return VK_FALSE;
 	}
-	if (pCallbackData->messageIdNumber == 767975156) {
+	if (callback_data->messageIdNumber == 767975156) {
 		// UNASSIGNED-BestPractices-vkCreateInstance-specialuse-extension
 		return VK_FALSE;
 	}
 #endif
 
 	std::cerr << std::format("{}: {}:\n",
-		vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(messageSeverity)),
-		vk::to_string(static_cast<vk::DebugUtilsMessageTypeFlagsEXT>(messageTypes))
+		vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(message_severity)),
+		vk::to_string(static_cast<vk::DebugUtilsMessageTypeFlagsEXT>(message_types))
 	);
-	std::cerr << std::format("\tmessageIDName   = <{}>\n", pCallbackData->pMessageIdName);
-	std::cerr << std::format("\tmessageIdNumber = {}\n" , pCallbackData->messageIdNumber);
-	std::cerr << std::format("\tmessage         = <{}>\n", pCallbackData->pMessage);
+	std::cerr << std::format("\tmessageIDName   = <{}>\n", callback_data->pMessageIdName);
+	std::cerr << std::format("\tmessageIdNumber = {}\n" , callback_data->messageIdNumber);
+	std::cerr << std::format("\tmessage         = <{}>\n", callback_data->pMessage);
 
-	if (pCallbackData->queueLabelCount > 0) {
+	if (callback_data->queueLabelCount > 0) {
 		std::cerr << "\tQueue Labels:\n";
-		for (uint8_t i = 0; i < pCallbackData->queueLabelCount; i++) {
-			std::cerr << std::format("\t\tlabelName = <{}>\n", pCallbackData->pQueueLabels[i].pLabelName);
+		for (uint8_t i = 0; i < callback_data->queueLabelCount; i++) {
+			std::cerr << std::format("\t\tlabelName = <{}>\n", callback_data->pQueueLabels[i].pLabelName);
 		}
 	}
-	if (pCallbackData->cmdBufLabelCount > 0) {
+	if (callback_data->cmdBufLabelCount > 0) {
 		std::cerr << "\tCommandBuffer Labels:\n";
-		for (uint8_t i = 0; i < pCallbackData->cmdBufLabelCount; i++) {
-			std::cerr << std::format("\t\tlabelName = <{}>\n", pCallbackData->pCmdBufLabels[i].pLabelName);
+		for (uint8_t i = 0; i < callback_data->cmdBufLabelCount; i++) {
+			std::cerr << std::format("\t\tlabelName = <{}>\n", callback_data->pCmdBufLabels[i].pLabelName);
 		}
 	}
-	if (pCallbackData->objectCount > 0) {
+	if (callback_data->objectCount > 0) {
 		std::cerr << "\tObjects:\n";
-		for (uint8_t i = 0; i < pCallbackData->objectCount; i++) {
+		for (uint8_t i = 0; i < callback_data->objectCount; i++) {
 			std::cerr << std::format("\t\tObject {}\n", i);
-			std::cerr << std::format("\t\t\tobjectType   = {}\n", vk::to_string(static_cast<vk::ObjectType>(pCallbackData->pObjects[i].objectType)));
-			std::cerr << std::format("\t\t\tobjectHandle = {}\n", pCallbackData->pObjects[i].objectHandle);
-			if (pCallbackData->pObjects[i].pObjectName) {
-				std::cerr << std::format("\t\t\tobjectName   = <{}>\n", pCallbackData->pObjects[i].pObjectName);
+			std::cerr << std::format("\t\t\tobjectType   = {}\n", vk::to_string(static_cast<vk::ObjectType>(callback_data->pObjects[i].objectType)));
+			std::cerr << std::format("\t\t\tobjectHandle = {}\n", callback_data->pObjects[i].objectHandle);
+			if (callback_data->pObjects[i].pObjectName) {
+				std::cerr << std::format("\t\t\tobjectName   = <{}>\n", callback_data->pObjects[i].pObjectName);
 			}
 		}
 	}

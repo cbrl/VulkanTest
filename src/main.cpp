@@ -28,8 +28,12 @@ import vkw;
 // TODO:
 //   - Add buffer_view class to encapsulate vk::raii::BufferView
 //   - Use descriptor indexing (core in Vulkan 1.2)
+//     - Single descriptor_set allocated from a single descriptor_pool
+//     - Configurable descriptor counts with large defaults
+//     - Track free indices and assign them at resource creation
 //   - Integrate VMA
 //   - Don't construct a unique sampler for each texture
+//     - Possibly remove the sampler from the texture class completely
 
 auto main(int argc, char** argv) -> int {
 	// Instance
