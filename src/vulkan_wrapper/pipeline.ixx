@@ -129,7 +129,6 @@ private:
 	std::vector<vk::DynamicState>                      dynamic_states;
 };
 
-
 export class graphics_pipeline_info : public graphics_pipeline_info_base {
 public:
 	graphics_pipeline_info() = default;
@@ -162,6 +161,71 @@ private:
 		dynamic_state.setDynamicStates(dynamic_states);
 	}
 };
+
+
+[[nodiscard]]
+static auto create_pipeline(const logical_device& device, const graphics_pipeline_info& info, vk::raii::PipelineCache* cache = nullptr) -> vk::raii::Pipeline {
+	assert(info.layout && "graphics_pipeline_info::layout must not be null");
+	assert((info.pass_details.index() != 0) && "graphics_pipeline_info::pass_details must not be null");
+
+	const auto stages = util::to_vector(std::views::transform(info.shader_stages, &shader_stage::get_create_info));
+
+	if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_details>(&info.pass_details)) {
+		const auto pipeline_create_info = vk::GraphicsPipelineCreateInfo{
+			vk::PipelineCreateFlags{},
+			stages,
+			&info.vertex_input_state,
+			&info.input_assembly_state,
+			&info.tessellation_state,
+			&info.viewport_state,
+			&info.raster_state,
+			&info.multistample_state,
+			&info.depth_stencil_state,
+			&info.color_blend_state,
+			&info.dynamic_state,
+			*info.layout->get_vk_layout(),
+			*pass_info->pass.get().get_vk_render_pass(),
+			pass_info->subpass,
+			vk::Pipeline{},
+			-1
+		};
+
+		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
+	}
+	else if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_single_details>(&info.pass_details)) {
+		const auto pipeline_create_info = vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR>{
+			{
+				vk::PipelineCreateFlags{},
+				stages,
+				&info.vertex_input_state,
+				&info.input_assembly_state,
+				&info.tessellation_state,
+				&info.viewport_state,
+				&info.raster_state,
+				&info.multistample_state,
+				&info.depth_stencil_state,
+				&info.color_blend_state,
+				&info.dynamic_state,
+				*info.layout->get_vk_layout(),
+				vk::RenderPass{},
+				0,
+				vk::Pipeline{},
+				-1
+			},
+			{
+				0,
+				pass_info->color_formats,
+				pass_info->depth_stencil_format,
+				pass_info->depth_stencil_format
+			}
+		};
+
+		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()};
+	}
+	else {
+		throw std::runtime_error{"Invalid state for graphics_pipeline_info::pass_details"};
+	}
+}
 
 
 export class graphics_pipeline {
@@ -209,74 +273,6 @@ public:
 	}
 
 private:
-
-	static auto create_pipeline(
-		const logical_device& device,
-		const graphics_pipeline_info& info,
-		vk::raii::PipelineCache* cache = nullptr
-	) -> vk::raii::Pipeline {
-
-		assert(info.layout && "graphics_pipeline_info::layout must not be null");
-		assert((info.pass_details.index() != 0) && "graphics_pipeline_info::pass_details must not be null");
-
-		const auto stages = vkw::util::to_vector(std::views::transform(info.shader_stages, &shader_stage::get_create_info));
-
-		if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_details>(&info.pass_details)) {
-			const auto pipeline_create_info = vk::GraphicsPipelineCreateInfo{
-				vk::PipelineCreateFlags{},
-				stages,
-				&info.vertex_input_state,
-				&info.input_assembly_state,
-				&info.tessellation_state,
-				&info.viewport_state,
-				&info.raster_state,
-				&info.multistample_state,
-				&info.depth_stencil_state,
-				&info.color_blend_state,
-				&info.dynamic_state,
-				*info.layout->get_vk_layout(),
-				*pass_info->pass.get().get_vk_render_pass(),
-				pass_info->subpass,
-				vk::Pipeline{},
-				-1
-			};
-
-			return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
-		}
-		else if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_single_details>(&info.pass_details)) {
-			const auto pipeline_create_info = vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR>{
-				{
-					vk::PipelineCreateFlags{},
-					stages,
-					&info.vertex_input_state,
-					&info.input_assembly_state,
-					&info.tessellation_state,
-					&info.viewport_state,
-					&info.raster_state,
-					&info.multistample_state,
-					&info.depth_stencil_state,
-					&info.color_blend_state,
-					&info.dynamic_state,
-					*info.layout->get_vk_layout(),
-					vk::RenderPass{},
-					0,
-					vk::Pipeline{},
-					-1
-				},
-				{
-					0,
-					pass_info->color_formats,
-					pass_info->depth_stencil_format,
-					pass_info->depth_stencil_format
-				}
-			};
-
-			return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()};
-		}
-		else {
-			throw std::runtime_error{"Invalid state for graphics_pipeline_info::pass_details"};
-		}
-	}
 
 	graphics_pipeline_info info;
 

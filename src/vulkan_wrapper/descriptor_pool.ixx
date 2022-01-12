@@ -15,6 +15,30 @@ import vkw.logical_device;
 import vkw.util;
 
 
+[[nodiscard]]
+static auto create_layout(
+	const vkw::logical_device& device,
+	std::span<const vk::DescriptorSetLayoutBinding> bindings,
+	vk::DescriptorSetLayoutCreateFlags flags = {}
+) -> vk::raii::DescriptorSetLayout {
+
+	const auto create_info = vk::DescriptorSetLayoutCreateInfo{flags, bindings};
+	return vk::raii::DescriptorSetLayout{device.get_vk_device(), create_info};
+}
+
+[[nodiscard]]
+static auto create_descriptor_pool(
+	const vkw::logical_device& device,
+	std::span<const vk::DescriptorPoolSize> pool_sizes,
+	uint32_t max_sets,
+	vk::DescriptorPoolCreateFlags flags
+) -> vk::raii::DescriptorPool {
+
+	const auto pool_create_info = vk::DescriptorPoolCreateInfo{flags, max_sets, pool_sizes};
+	return vk::raii::DescriptorPool(device.get_vk_device(), pool_create_info);
+}
+
+
 export namespace vkw {
 
 class descriptor_set_layout {
@@ -40,17 +64,6 @@ public:
 
 private:
 
-	[[nodiscard]]
-	static auto create_layout(
-		const logical_device& device,
-		std::span<const vk::DescriptorSetLayoutBinding> bindings,
-		vk::DescriptorSetLayoutCreateFlags flags = {}
-	) -> vk::raii::DescriptorSetLayout {
-
-		const auto create_info = vk::DescriptorSetLayoutCreateInfo{flags, bindings};
-		return vk::raii::DescriptorSetLayout{device.get_vk_device(), create_info};
-	}
-
 	vk::raii::DescriptorSetLayout layout;
 	std::vector<vk::DescriptorSetLayoutBinding> bindings;
 };
@@ -67,7 +80,7 @@ public:
 		device(device),
 		sizes(pool_sizes.begin(), pool_sizes.end()),
 		max(max_sets),
-		pool(make_descriptor_pool(device, pool_sizes, max_sets, flags)) {
+		pool(create_descriptor_pool(device, pool_sizes, max_sets, flags)) {
 	}
 	
 	descriptor_pool(
@@ -122,19 +135,6 @@ public:
 	}
 
 private:
-
-	[[nodiscard]]
-	static auto make_descriptor_pool(
-		const logical_device& device,
-		std::span<const vk::DescriptorPoolSize> pool_sizes,
-		uint32_t max_sets,
-		vk::DescriptorPoolCreateFlags flags
-	) -> vk::raii::DescriptorPool {
-
-		const auto pool_create_info = vk::DescriptorPoolCreateInfo{flags, max_sets, pool_sizes};
-		return vk::raii::DescriptorPool(device.get_vk_device(), pool_create_info);
-	}
-
 
 	std::reference_wrapper<const logical_device> device;
 	

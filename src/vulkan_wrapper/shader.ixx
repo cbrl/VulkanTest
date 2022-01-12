@@ -10,9 +10,20 @@ export module vkw.shader;
 import vkw.logical_device;
 
 
-export namespace vkw {
+namespace vkw {
 
-class shader_stage {
+[[nodiscard]]
+static auto create_shader_module(const logical_device& device, std::span<const uint32_t> data) -> vk::raii::ShaderModule {
+	const auto create_info = vk::ShaderModuleCreateInfo{
+		vk::ShaderModuleCreateFlags{},
+		data.size_bytes(),
+		data.data()
+	};
+
+	return vk::raii::ShaderModule{device.get_vk_device(), create_info};
+}
+
+export class shader_stage {
 public:
 	static constexpr const char* entry_point_name = "main";
 
@@ -55,17 +66,6 @@ public:
 	}
 
 private:
-
-	[[nodiscard]]
-	static auto create_shader_module(const logical_device& device, std::span<const uint32_t> data) -> vk::raii::ShaderModule {
-		const auto create_info = vk::ShaderModuleCreateInfo{
-			vk::ShaderModuleCreateFlags{},
-			data.size_bytes(),
-			data.data()
-		};
-
-		return vk::raii::ShaderModule{device.get_vk_device(), create_info};
-	}
 
 	vk::PipelineShaderStageCreateInfo create_info;
 	vk::SpecializationInfo specialization_info;

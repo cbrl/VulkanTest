@@ -14,7 +14,7 @@ import vkw.util;
 
 
 export namespace vkw {
-struct image_info {
+export struct image_info {
 	image_info() {
 		create_info.imageType     = vk::ImageType::e2D;
 		create_info.format        = vk::Format::eR8G8B8A8Srgb;
@@ -30,7 +30,6 @@ struct image_info {
 	vk::ImageCreateInfo create_info;
 	vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 };
-}
 
 
 [[nodiscard]]
@@ -41,9 +40,7 @@ auto create_memory(const vkw::logical_device& device, const vk::raii::Image& vk_
 }
 
 
-export namespace vkw {
-
-class image {
+export class image {
 public:
 	image(const logical_device& device, const image_info& info) :
 		info(info),
@@ -75,7 +72,7 @@ private:
 };
 
 
-class image_view {
+export class image_view {
 public:
 	image_view(const logical_device& device, const vk::ImageViewCreateInfo& info) :
 		info(info),
@@ -92,25 +89,13 @@ public:
 		return view;
 	}
 
-	[[nodiscard]]
-	static constexpr auto default_view_info() noexcept -> vk::ImageViewCreateInfo {
-		return vk::ImageViewCreateInfo{
-			vk::ImageViewCreateFlags{},
-			vk::Image{},
-			vk::ImageViewType::e2D,
-			vk::Format::eR8G8B8A8Srgb,
-			vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA},
-			vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
-		};
-	}
-
 private:
 	vk::ImageViewCreateInfo info;
 	vk::raii::ImageView view;
 };
 
 
-namespace util {
+export namespace util {
 
 // This does not handle multi-planar formats
 [[nodiscard]]

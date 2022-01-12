@@ -15,6 +15,64 @@ import vkw.logical_device;
 import vkw.window;
 
 
+[[nodiscard]]
+static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
+	static const vk::PresentModeKHR desired_modes[] = {
+		vk::PresentModeKHR::eMailbox,
+		vk::PresentModeKHR::eImmediate
+	};
+
+	for (const auto& mode : desired_modes) {
+		if (const auto it = std::ranges::find(modes, mode); it != modes.end()) {
+			return *it;
+		}
+	}
+
+	// FIFO is guaranteed to be available
+	return vk::PresentModeKHR::eFifo;
+}
+
+[[nodiscard]]
+static auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_capabilities, vk::Extent2D requested_size) -> vk::Extent2D {
+	if (surface_capabilities.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
+		// If the surface size is undefined, the size is set to the size of the images requested.
+		requested_size.width = std::clamp(requested_size.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+		requested_size.height = std::clamp(requested_size.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+		return requested_size;
+	}
+	else {
+		// If the surface size is defined, the swap chain size must match.
+		return surface_capabilities.currentExtent;
+	}
+}
+
+[[nodiscard]]
+static auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::SurfaceTransformFlagBitsKHR {
+	if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
+		return vk::SurfaceTransformFlagBitsKHR::eIdentity;
+	}
+	else {
+		return surface_capabilities.currentTransform;
+	}
+}
+
+[[nodiscard]]
+static auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::CompositeAlphaFlagBitsKHR {
+	if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) {
+		return vk::CompositeAlphaFlagBitsKHR::ePreMultiplied;
+	}
+	else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePostMultiplied) {
+		return vk::CompositeAlphaFlagBitsKHR::ePostMultiplied;
+	}
+	else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) {
+		return vk::CompositeAlphaFlagBitsKHR::eInherit;
+	}
+	else {
+		return vk::CompositeAlphaFlagBitsKHR::eOpaque;
+	}
+}
+
+
 export namespace vkw {
 
 class swapchain {
@@ -138,62 +196,6 @@ private:
 		}
 	}
 
-	[[nodiscard]]
-	static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
-		static const vk::PresentModeKHR desired_modes[] = {
-			vk::PresentModeKHR::eMailbox,
-			vk::PresentModeKHR::eImmediate
-		};
-
-		for (const auto& mode : desired_modes) {
-			if (const auto it = std::ranges::find(modes, mode); it != modes.end()) {
-				return *it;
-			}
-		}
-
-		// FIFO is guaranteed to be available
-		return vk::PresentModeKHR::eFifo;
-	}
-
-	[[nodiscard]]
-	static auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_capabilities, vk::Extent2D requested_size) -> vk::Extent2D {
-		if (surface_capabilities.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
-			// If the surface size is undefined, the size is set to the size of the images requested.
-			requested_size.width  = std::clamp(requested_size.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-			requested_size.height = std::clamp(requested_size.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
-			return requested_size;
-		}
-		else {
-			// If the surface size is defined, the swap chain size must match.
-			return surface_capabilities.currentExtent;
-		}
-	}
-
-	[[nodiscard]]
-	static auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::SurfaceTransformFlagBitsKHR {
-		if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
-			return vk::SurfaceTransformFlagBitsKHR::eIdentity;
-		}
-		else {
-			return surface_capabilities.currentTransform;
-		}
-	}
-
-	[[nodiscard]]
-	static auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::CompositeAlphaFlagBitsKHR {
-		if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) {
-			return vk::CompositeAlphaFlagBitsKHR::ePreMultiplied;
-		}
-		else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePostMultiplied) {
-			return vk::CompositeAlphaFlagBitsKHR::ePostMultiplied;
-		}
-		else if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) {
-			return vk::CompositeAlphaFlagBitsKHR::eInherit;
-		}
-		else {
-			return vk::CompositeAlphaFlagBitsKHR::eOpaque;
-		}
-	}
 
 	std::reference_wrapper<const logical_device> device;
 	std::reference_wrapper<const window> wind;

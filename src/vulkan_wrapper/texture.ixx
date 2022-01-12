@@ -14,29 +14,29 @@ import vkw.image;
 import vkw.logical_device;
 
 
-export namespace vkw {
-struct mip_level {
+namespace vkw {
+
+export struct mip_level {
 	vk::Extent3D extent;
 	size_t size;
 };
 
-struct texture_info {
+export struct texture_info {
 	image_info image;
 	vk::ImageViewCreateInfo view;
 	std::vector<std::vector<mip_level>> image_layers;
 	bool force_staging = false;
 };
-} //namespace vkw
 
 
 [[nodiscard]]
-auto is_staging_required(const vkw::logical_device& device, vk::Format format) -> bool {
+auto is_staging_required(const logical_device& device, vk::Format format) -> bool {
 	const auto format_properties = device.get_vk_physical_device().getFormatProperties(format);
 	return (format_properties.linearTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage) != vk::FormatFeatureFlagBits::eSampledImage;
 }
 
 [[nodiscard]]
-auto create_image(const vkw::logical_device& device, const vkw::texture_info& tex_info) -> vkw::image {
+auto create_image(const logical_device& device, const texture_info& tex_info) -> image {
 	const auto needs_staging = tex_info.force_staging || is_staging_required(device, tex_info.image.create_info.format);
 
 	auto image_nfo = tex_info.image;
@@ -58,11 +58,11 @@ auto create_image(const vkw::logical_device& device, const vkw::texture_info& te
 		image_nfo.create_info.flags |= vk::ImageCreateFlagBits::eCubeCompatible;
 	}
 
-	return vkw::image{device, image_nfo};
+	return image{device, image_nfo};
 }
 
 [[nodiscard]]
-auto create_image_view(const vkw::logical_device& device, const vkw::image& img, const vkw::texture_info& tex_info) -> vkw::image_view {
+auto create_image_view(const logical_device& device, const image& img, const texture_info& tex_info) -> image_view {
 	auto view_nfo = tex_info.view;
 	
 	view_nfo.image = *img.get_vk_image();
@@ -73,13 +73,11 @@ auto create_image_view(const vkw::logical_device& device, const vkw::image& img,
 	view_nfo.subresourceRange.baseArrayLayer = 0;
 	view_nfo.subresourceRange.layerCount     = std::max<uint32_t>(1, static_cast<uint32_t>(tex_info.image_layers.size()));
 
-	return vkw::image_view{device, view_nfo};
+	return image_view{device, view_nfo};
 }
 
 
-export namespace vkw {
-
-class texture {
+export class texture {
 public:
 	texture(const logical_device& device, const texture_info& tex_info) :
 		image_data(create_image(device, tex_info)),
@@ -117,7 +115,7 @@ public:
 	auto stage(const vk::raii::CommandBuffer& command_buffer) -> void {
 		if (not needs_staging) {
 			// Use the linear tiled image as a texture if possible
-			const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
+			const auto [src_stage, dest_stage, barrier] = util::create_layout_barrier(
 				image_data,
 				vk::ImageLayout::ePreinitialized,
 				vk::ImageLayout::eShaderReadOnlyOptimal
@@ -159,7 +157,7 @@ public:
 
 			// Since we're going to blit to the texture image, set its layout to eTransferDstOptimal
 			{
-				const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
+				const auto [src_stage, dest_stage, barrier] = util::create_layout_barrier(
 					image_data,
 					vk::ImageLayout::eUndefined,
 					vk::ImageLayout::eTransferDstOptimal
@@ -177,7 +175,7 @@ public:
 
 			// Set the layout for the texture image from eTransferDstOptimal to eShaderReadOnlyOptimal
 			{
-				const auto [src_stage, dest_stage, barrier] = vkw::util::create_layout_barrier(
+				const auto [src_stage, dest_stage, barrier] = util::create_layout_barrier(
 					image_data,
 					vk::ImageLayout::eTransferDstOptimal,
 					vk::ImageLayout::eShaderReadOnlyOptimal
@@ -200,10 +198,10 @@ private:
 };
 
 
-namespace util {
+export namespace util {
 	
 [[nodiscard]]
-auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
+auto create_depth_buffer(const logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
 	auto info = texture_info{};
 
 	info.force_staging = true;
@@ -222,7 +220,7 @@ auto create_depth_buffer(const vkw::logical_device& device, vk::Format format, c
 }
 
 [[nodiscard]]
-auto create_depth_stencil_buffer(const vkw::logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
+auto create_depth_stencil_buffer(const logical_device& device, vk::Format format, const vk::Extent2D& extent) -> texture {
 	auto info = texture_info{};
 
 	info.force_staging = true;

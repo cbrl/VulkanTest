@@ -19,9 +19,8 @@ import vkw.queue;
 import vkw.util;
 
 
-export namespace vkw {
-
-struct logical_device_info {
+namespace vkw {
+export struct logical_device_info {
 	auto add_all_queues(float priority) -> void {
 		queue_family_info_list.clear();
 		const auto properties = physical_device.get().getQueueFamilyProperties();
@@ -96,7 +95,66 @@ struct logical_device_info {
 };
 
 
-class logical_device {
+[[nodiscard]]
+auto process_config(const logical_device_info& info) -> logical_device_info {
+	auto output = info;
+
+	output.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
+
+	output.features.samplerAnisotropy = VK_TRUE;
+
+	return output;
+}
+
+[[nodiscard]]
+auto create_device(const logical_device_info& info) -> vk::raii::Device {
+	// Validate the queues and extensions
+	debug::validate_queues(info.queue_family_info_list, info.physical_device.get().getQueueFamilyProperties());
+	debug::validate_extensions(info.extensions, info.physical_device.get().enumerateDeviceExtensionProperties());
+
+	// Build the queue create info list
+	auto queue_create_info_list = std::vector<vk::DeviceQueueCreateInfo>{};
+	queue_create_info_list.reserve(info.queue_family_info_list.size());
+
+	auto priorities = std::vector<std::vector<float>>{};
+	priorities.reserve(info.queue_family_info_list.size());
+
+	for (const auto& family : info.queue_family_info_list) {
+		auto& priority_list = priorities.emplace_back();
+
+		for (const auto& queue : family.queues) {
+			priority_list.push_back(queue.priority);
+		}
+
+		auto create_info = vk::DeviceQueueCreateInfo{
+			vk::DeviceQueueCreateFlags{},
+			family.family_idx,
+			priority_list
+		};
+
+		queue_create_info_list.push_back(std::move(create_info));
+	}
+
+	// Create the device
+	const auto device_create_info = vk::StructureChain{
+		vk::DeviceCreateInfo{
+			vk::DeviceCreateFlags{},
+			queue_create_info_list,
+			nullptr,
+			info.extensions,
+			&info.features
+		},
+		vk::PhysicalDeviceDynamicRenderingFeaturesKHR{
+			VK_TRUE
+		}
+	};
+
+	return vk::raii::Device{info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
+}
+
+
+export class logical_device {
 public:
 	logical_device(const logical_device_info& info) : device_info(process_config(info)), device(create_device(device_info)) {
 		// First queue pass: map queues to their exact queue flags.
@@ -199,65 +257,6 @@ public:
 	}
 
 private:
-
-	[[nodiscard]]
-	static auto process_config(const logical_device_info& info) -> logical_device_info {
-		auto output = info;
-
-		output.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-		output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
-
-		output.features.samplerAnisotropy = VK_TRUE;
-
-		return output;
-	}
-
-	[[nodiscard]]
-	static auto create_device(const logical_device_info& info) -> vk::raii::Device {
-		// Validate the queues and extensions
-		debug::validate_queues(info.queue_family_info_list, info.physical_device.get().getQueueFamilyProperties());
-		debug::validate_extensions(info.extensions, info.physical_device.get().enumerateDeviceExtensionProperties());
-
-		// Build the queue create info list
-		auto queue_create_info_list = std::vector<vk::DeviceQueueCreateInfo>{};
-		queue_create_info_list.reserve(info.queue_family_info_list.size());
-
-		auto priorities = std::vector<std::vector<float>>{};
-		priorities.reserve(info.queue_family_info_list.size());
-
-		for (const auto& family : info.queue_family_info_list) {
-			auto& priority_list = priorities.emplace_back();
-
-			for (const auto& queue : family.queues) {
-				priority_list.push_back(queue.priority);
-			}
-
-			auto create_info = vk::DeviceQueueCreateInfo{
-				vk::DeviceQueueCreateFlags{},
-				family.family_idx,
-				priority_list
-			};
-
-			queue_create_info_list.push_back(std::move(create_info));
-		}
-
-		// Create the device
-		const auto device_create_info = vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceDynamicRenderingFeaturesKHR>{
-			{
-				vk::DeviceCreateFlags{},
-				queue_create_info_list,
-				nullptr,
-				info.extensions,
-				&info.features
-			},
-			{
-				VK_TRUE
-			}
-		};
-
-		return vk::raii::Device{info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
-	}
-
 
 	logical_device_info device_info;
 	vk::raii::Device device;

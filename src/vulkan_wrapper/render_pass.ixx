@@ -17,9 +17,9 @@ import vkw.util;
 import vkw.subpass;
 
 
-export namespace vkw {
+namespace vkw {
 
-struct render_pass_info {
+export struct render_pass_info {
 	std::vector<std::reference_wrapper<const subpass>> subpasses;
 	std::vector<vk::SubpassDependency> subpass_dependencies;
 
@@ -29,7 +29,44 @@ struct render_pass_info {
 	vk::Rect2D area_rect;
 };
 
-class render_pass {
+
+[[nodiscard]]
+auto create_render_pass(const logical_device& device, const render_pass_info& info) -> vk::raii::RenderPass {
+	const auto subpass_descriptions = vkw::util::to_vector(std::views::transform(info.subpasses, &subpass::get_description));
+
+	const auto create_info = vk::RenderPassCreateInfo{
+		vk::RenderPassCreateFlags{},
+		info.attachment_descriptions,
+		subpass_descriptions,
+		info.subpass_dependencies
+	};
+
+	return vk::raii::RenderPass{device.get_vk_device(), create_info};
+}
+
+[[nodiscard]]
+auto create_framebuffers(const logical_device& device, const vk::raii::RenderPass& pass, const render_pass_info& info) -> std::vector<vk::raii::Framebuffer> {
+	auto framebuffers = std::vector<vk::raii::Framebuffer>{};
+	framebuffers.reserve(info.target_attachments.size());
+
+	for (const auto& attachment : info.target_attachments) {
+		const auto create_info = vk::FramebufferCreateInfo{
+			vk::FramebufferCreateFlags{},
+			*pass,
+			attachment,
+			info.area_rect.extent.width,
+			info.area_rect.extent.height,
+			1
+		};
+
+		framebuffers.emplace_back(device.get_vk_device(), create_info);
+	}
+
+	return framebuffers;
+}
+
+
+export class render_pass {
 public:
 	render_pass(const logical_device& device, const render_pass_info& info) :
 		info(info),
@@ -79,46 +116,6 @@ public:
 	}
 
 private:
-
-	[[nodiscard]]
-	static auto create_render_pass(const logical_device& device, const render_pass_info& info) -> vk::raii::RenderPass {
-		const auto subpass_descriptions = vkw::util::to_vector(std::views::transform(info.subpasses, &subpass::get_description));
-
-		const auto create_info = vk::RenderPassCreateInfo{
-			vk::RenderPassCreateFlags{},
-			info.attachment_descriptions,
-			subpass_descriptions,
-			info.subpass_dependencies
-		};
-
-		return vk::raii::RenderPass{device.get_vk_device(), create_info};
-	}
-
-	[[nodiscard]]
-	static auto create_framebuffers(
-		const logical_device& device,
-		const vk::raii::RenderPass& pass,
-		const render_pass_info& info
-	) -> std::vector<vk::raii::Framebuffer> {
-
-		auto framebuffers = std::vector<vk::raii::Framebuffer>{};
-		framebuffers.reserve(info.target_attachments.size());
-
-		for (const auto& attachment : info.target_attachments) {
-			const auto create_info = vk::FramebufferCreateInfo{
-				vk::FramebufferCreateFlags{},
-				*pass,
-				attachment,
-				info.area_rect.extent.width,
-				info.area_rect.extent.height,
-				1
-			};
-
-			framebuffers.emplace_back(device.get_vk_device(), create_info);
-		}
-
-		return framebuffers;
-	}
 
 	render_pass_info info;
 

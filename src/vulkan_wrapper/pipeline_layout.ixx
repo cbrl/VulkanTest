@@ -14,9 +14,32 @@ import vkw.descriptor_set;
 import vkw.util;
 
 
-export namespace vkw {
+namespace vkw {
 
-class pipeline_layout {
+[[nodiscard]]
+auto make_layout(
+	const logical_device& device,
+	std::span<const descriptor_set_layout> descriptor_layouts,
+	std::span<const vk::PushConstantRange> push_constant_ranges
+) -> vk::raii::PipelineLayout {
+
+	auto vk_layouts = std::vector<vk::DescriptorSetLayout>{};
+	vk_layouts.reserve(descriptor_layouts.size());
+
+	for (const auto& layout : descriptor_layouts) {
+		vk_layouts.push_back(*layout.get_vk_layout());
+	}
+
+	const auto layout_create_info = vk::PipelineLayoutCreateInfo{
+		vk::PipelineLayoutCreateFlags{},
+		vk_layouts,
+		push_constant_ranges
+	};
+
+	return vk::raii::PipelineLayout{device.get_vk_device(), layout_create_info};
+}
+
+export class pipeline_layout {
 public:
 	pipeline_layout(
 		const logical_device& device,
@@ -68,29 +91,6 @@ public:
 	}
 
 private:
-
-	[[nodiscard]]
-	static auto make_layout(
-		const logical_device& device,
-		std::span<const descriptor_set_layout> descriptor_layouts,
-		std::span<const vk::PushConstantRange> push_constant_ranges
-	) -> vk::raii::PipelineLayout {
-
-		auto vk_layouts = std::vector<vk::DescriptorSetLayout>{};
-		vk_layouts.reserve(descriptor_layouts.size());
-
-		for (const auto& layout : descriptor_layouts) {
-			vk_layouts.push_back(*layout.get_vk_layout());
-		}
-
-		const auto layout_create_info = vk::PipelineLayoutCreateInfo{
-			vk::PipelineLayoutCreateFlags{},
-			vk_layouts,
-			push_constant_ranges
-		};
-
-		return vk::raii::PipelineLayout{device.get_vk_device(), layout_create_info};
-	}
 
 	std::span<const descriptor_set_layout> descriptor_layouts;
 	std::vector<vk::PushConstantRange> push_constant_ranges;
