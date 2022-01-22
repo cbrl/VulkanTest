@@ -23,7 +23,7 @@ namespace vkw {
 export struct logical_device_info {
 	auto add_all_queues(float priority) -> void {
 		queue_family_info_list.clear();
-		const auto properties = physical_device.get().getQueueFamilyProperties();
+		const auto properties = physical_device->getQueueFamilyProperties();
 
 		for (auto family_idx : std::views::iota(size_t{0}, properties.size())) {
 			const auto& prop = properties[family_idx];
@@ -32,7 +32,7 @@ export struct logical_device_info {
 	}
 
 	auto add_queues(vk::QueueFlags flags, float priority, uint32_t count = 1) -> std::optional<uint32_t> {
-		const auto properties = physical_device.get().getQueueFamilyProperties();
+		const auto properties = physical_device->getQueueFamilyProperties();
 
 		// Enumerate available queue properties, and subtract the number of currently added
 		// queues from their queue counts.
@@ -80,7 +80,7 @@ export struct logical_device_info {
 		}
 
 		// Add a new QueueFamilyInfo if one with the specified family index was not found
-		const auto properties = physical_device.get().getQueueFamilyProperties();
+		const auto properties = physical_device->getQueueFamilyProperties();
 		auto& family_info = queue_family_info_list.emplace_back(family_idx, properties[family_idx].queueFlags);
 
 		for (uint32_t i = 0; i < count; ++i) {
@@ -88,7 +88,7 @@ export struct logical_device_info {
 		}
 	}
 
-	std::reference_wrapper<vk::raii::PhysicalDevice> physical_device;
+	std::shared_ptr<vk::raii::PhysicalDevice> physical_device;
 	vk::PhysicalDeviceFeatures features;
 	std::vector<const char*> extensions;
 	std::vector<queue_family_info> queue_family_info_list;
@@ -109,9 +109,11 @@ auto process_config(const logical_device_info& info) -> logical_device_info {
 
 [[nodiscard]]
 auto create_device(const logical_device_info& info) -> vk::raii::Device {
+	assert(info.physical_device != nullptr);
+
 	// Validate the queues and extensions
-	debug::validate_queues(info.queue_family_info_list, info.physical_device.get().getQueueFamilyProperties());
-	debug::validate_extensions(info.extensions, info.physical_device.get().enumerateDeviceExtensionProperties());
+	debug::validate_queues(info.queue_family_info_list, info.physical_device->getQueueFamilyProperties());
+	debug::validate_extensions(info.extensions, info.physical_device->enumerateDeviceExtensionProperties());
 
 	// Build the queue create info list
 	auto queue_create_info_list = std::vector<vk::DeviceQueueCreateInfo>{};
@@ -150,12 +152,17 @@ auto create_device(const logical_device_info& info) -> vk::raii::Device {
 		}
 	};
 
-	return vk::raii::Device{info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
+	return vk::raii::Device{*info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
 }
 
 
-export class logical_device {
+export class logical_device : public std::enable_shared_from_this<logical_device> {
 public:
+	[[nodiscard]]
+	static auto create(const logical_device_info& info) -> std::shared_ptr<logical_device> {
+		return std::make_shared<logical_device>(info);
+	}
+
 	logical_device(const logical_device_info& info) : device_info(process_config(info)), device(create_device(device_info)) {
 		// First queue pass: map queues to their exact queue flags.
 		// E.g. If a queue is specified which suports only Compute, then map that as the first
@@ -167,7 +174,7 @@ public:
 
 			for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
 				auto& new_queue = queues.emplace_back(device, family.family_idx, queue_idx);
-				queue_map[flag_mask].push_back(std::ref(new_queue));
+				queue_map[static_cast<vk::QueueFlags>(flag_mask)].push_back(std::ref(new_queue));
 			}
 		}
 
@@ -192,8 +199,7 @@ public:
 				}
 
 				for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
-					auto& queue = get_queue(flags, queue_idx);
-					queue_map[mask].push_back(std::ref(queue));
+					queue_map[static_cast<vk::QueueFlags>(mask)].push_back(queue_map[flags].at(queue_idx));
 				}
 			}
 		}
@@ -205,7 +211,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_physical_device() const -> const vk::raii::PhysicalDevice& {
+	auto get_vk_physical_device() const -> const std::shared_ptr<vk::raii::PhysicalDevice>& {
 		return device_info.physical_device;
 	}
 
@@ -215,32 +221,34 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) const -> const queue& {
-		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)].at(queue_idx);
+	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) const -> std::shared_ptr<queue> {
+		return std::shared_ptr<queue>{shared_from_this(), &queue_map[flag].at(queue_idx).get()};
 	}
 
 	[[nodiscard]]
-	auto get_queues(vk::QueueFlags flag) const -> const std::vector<std::reference_wrapper<const queue>>& {
-		return queue_map[static_cast<vk::QueueFlags::MaskType>(flag)];
+	auto get_queues(vk::QueueFlags flag) const -> std::vector<std::shared_ptr<queue>> {
+		return vkw::util::to_vector(std::views::transform(queue_map[flag], [this](queue& q) {
+			return std::shared_ptr<queue>{shared_from_this(), &q};
+		}));
 	}
 
 	[[nodiscard]]
-	auto get_present_queue(const vk::SurfaceKHR& surface) const -> const queue* {
-		for (const auto& q : queues) {
-			if (device_info.physical_device.get().getSurfaceSupportKHR(q.family_index, surface)) {
-				return &q;
+	auto get_present_queue(const vk::SurfaceKHR& surface) const -> std::shared_ptr<queue> {
+		for (auto& q : queues) {
+			if (device_info.physical_device->getSurfaceSupportKHR(q.family_index, surface)) {
+				return std::shared_ptr<queue>{shared_from_this(), &q};
 			}
 		}
 		return nullptr;
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::vector<std::reference_wrapper<const queue>> {
-		auto results = std::vector<std::reference_wrapper<const queue>>{};
+	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::vector<std::shared_ptr<queue>> {
+		auto results = std::vector<std::shared_ptr<queue>>{};
 
 		for (auto& q : queues) {
-			if (device_info.physical_device.get().getSurfaceSupportKHR(q.family_index, surface)) {
-				results.push_back(std::ref(q));
+			if (device_info.physical_device->getSurfaceSupportKHR(q.family_index, surface)) {
+				results.emplace_back(shared_from_this(), &q);
 			}
 		}
 
@@ -249,7 +257,7 @@ public:
 
 	[[nodiscard]]
 	auto create_device_memory(const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags property_flags) const -> vk::raii::DeviceMemory {
-		const auto memory_properties    = get_vk_physical_device().getMemoryProperties();
+		const auto memory_properties    = device_info.physical_device->getMemoryProperties();
 		const auto memory_type_index    = util::find_memory_type(memory_properties, memory_requirements.memoryTypeBits, property_flags);
 		const auto memory_allocate_info = vk::MemoryAllocateInfo{memory_requirements.size, memory_type_index};
 
@@ -261,12 +269,12 @@ private:
 	logical_device_info device_info;
 	vk::raii::Device device;
 
-	std::vector<queue> queues;
+	mutable std::vector<queue> queues;
 
 	// Mappings to every queue from each combination of their flags. E.g. a Graphics/Compute/Transfer queue will be
 	// mapped to each combination of those 3 types. std::vector doesn't invalidate pointers on move, so storing
-	// references to the queues will be fine if an instance of this class is moved.
-	mutable std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<const queue>>> queue_map;
+	// pointers to the queues will be fine if an instance of this class is moved.
+	mutable std::unordered_map<vk::QueueFlags, std::vector<std::reference_wrapper<queue>>> queue_map;
 };
 
 } //namespace vkw

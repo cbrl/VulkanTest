@@ -48,33 +48,38 @@ constexpr auto to_vector(R&& r) -> std::vector<std::ranges::range_value_t<R>> {
 	return result;
 }
 
-/// Constructs a transform_view that views a range of vk::raii::X objects as their vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
-template<std::ranges::input_range V>
+/// Convert a vk::raii::X object to its vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
+template<typename T>
 [[nodiscard]]
-auto as_handles(V&& v) {
-	using value_type = std::ranges::range_value_t<V>;
+auto as_handle(T&& v) {
+	constexpr auto pointer_like = pointer<std::remove_cvref_t<T>>;
 
-	constexpr auto pointer_like = pointer<value_type>;
-
-	constexpr auto ref_wrapper_like = requires(value_type v) {
-		typename value_type::type;
+	constexpr auto ref_wrapper_like = requires(std::remove_cvref_t<T> v) {
+		typename decltype(v)::type;
 		v.get();
-		std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename value_type::type>>;
+		std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename decltype(v)::type>>;
 	};
 
 	if constexpr (pointer_like) {
-		using element_type = std::pointer_traits<value_type>::element_type;
-		return std::views::transform(std::views::transform(v, [](auto&& n) { return *n; }), &element_type::operator*);
+		return **v;
 	}
 	else if constexpr (ref_wrapper_like) {
-		using element_type = typename value_type::type;
-		return std::views::transform(std::views::transform(v, &value_type::get), &element_type::operator*);
+		return *v.get();
 	}
 	else {
-		return std::views::transform(v, &value_type::operator*);
+		return *v;
 	}
-};
+}
 
+/// A transform_view that views a range of vk::raii::X objects as their vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
+template<typename T>
+constexpr auto handle_view = std::views::transform(as_handle<T>);
+
+template<std::ranges::viewable_range R>
+[[nodiscard]]
+auto as_handles(R&& r) {
+	return std::views::transform(std::forward<R>(r), [](auto&& n) { return as_handle(n); });
+}
 
 [[nodiscard]]
 auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {

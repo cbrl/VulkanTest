@@ -12,11 +12,12 @@ export module vkw.swapchain;
 
 import vkw.image;
 import vkw.logical_device;
+import vkw.util;
 import vkw.window;
 
 
 [[nodiscard]]
-static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
+auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) -> vk::PresentModeKHR {
 	static const vk::PresentModeKHR desired_modes[] = {
 		vk::PresentModeKHR::eMailbox,
 		vk::PresentModeKHR::eImmediate
@@ -33,7 +34,7 @@ static auto select_present_mode(const std::vector<vk::PresentModeKHR>& modes) ->
 }
 
 [[nodiscard]]
-static auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_capabilities, vk::Extent2D requested_size) -> vk::Extent2D {
+auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_capabilities, vk::Extent2D requested_size) -> vk::Extent2D {
 	if (surface_capabilities.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
 		// If the surface size is undefined, the size is set to the size of the images requested.
 		requested_size.width = std::clamp(requested_size.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
@@ -47,7 +48,7 @@ static auto select_swapchain_extent(const vk::SurfaceCapabilitiesKHR& surface_ca
 }
 
 [[nodiscard]]
-static auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::SurfaceTransformFlagBitsKHR {
+auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::SurfaceTransformFlagBitsKHR {
 	if (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) {
 		return vk::SurfaceTransformFlagBitsKHR::eIdentity;
 	}
@@ -57,7 +58,7 @@ static auto select_transform(const vk::SurfaceCapabilitiesKHR& surface_capabilit
 }
 
 [[nodiscard]]
-static auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::CompositeAlphaFlagBitsKHR {
+auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_capabilities) -> vk::CompositeAlphaFlagBitsKHR {
 	if (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) {
 		return vk::CompositeAlphaFlagBitsKHR::ePreMultiplied;
 	}
@@ -75,12 +76,23 @@ static auto select_composite_alpha(const vk::SurfaceCapabilitiesKHR& surface_cap
 
 export namespace vkw {
 
-class swapchain {
+class swapchain : public std::enable_shared_from_this<swapchain> {
 public:
-	swapchain(const logical_device& device, const window& wind) : device(device), wind(wind) {
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, std::shared_ptr<window> wind) -> std::shared_ptr<swapchain> {
+		return std::make_shared<swapchain>(std::move(device), std::move(wind));
 	}
 
-	auto create(
+	swapchain(std::shared_ptr<logical_device> device, std::shared_ptr<window> wind) :
+		device(std::move(device)),
+		wind(std::move(wind)) {
+	}
+
+	~swapchain() {
+		invalidate_images();
+	}
+
+	auto rebuild(
 		vk::SurfaceFormatKHR format,
 		vk::ImageUsageFlags usage,
 		vk::Extent2D size,
@@ -96,7 +108,7 @@ public:
 	}
 
 	auto resize(vk::Extent2D new_size) -> void {
-		device.get().get_vk_device().waitIdle();
+		device->get_vk_device().waitIdle();
 
 		size = new_size;
 		create_impl();
@@ -113,49 +125,76 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_size() -> vk::Extent2D {
+	auto get_size() const noexcept -> vk::Extent2D {
 		return size;
 	}
 
 	[[nodiscard]]
-	auto get_format() -> vk::SurfaceFormatKHR {
+	auto get_format() const noexcept -> vk::SurfaceFormatKHR {
 		return format;
 	}
 
 	[[nodiscard]]
-	auto get_images() const noexcept -> const std::vector<vk::Image>& {
-		return images;
+	auto get_image_count() const noexcept -> size_t {
+		return image_count;
 	}
 
 	[[nodiscard]]
-	auto get_image_views() const noexcept -> const std::vector<image_view>& {
-		return image_views;
+	auto get_image(size_t idx) -> std::shared_ptr<image> {
+		return std::shared_ptr<image>{shared_from_this(), & images.at(idx)};
+	}
+
+	[[nodiscard]]
+	auto get_images() -> std::vector<std::shared_ptr<image>> {
+		return vkw::util::to_vector(std::views::transform(images, [this](auto& img) {
+			return std::shared_ptr<image>{shared_from_this(), &img};
+		}));
+	}
+
+	[[nodiscard]]
+	auto get_image_view(size_t idx) -> std::shared_ptr<image_view> {
+		return std::shared_ptr<image_view>{shared_from_this(), & image_views.at(idx)};
+	}
+
+	[[nodiscard]]
+	auto get_image_views() -> std::vector<std::shared_ptr<image_view>> {
+		return vkw::util::to_vector(std::views::transform(image_views, [this](auto& view) {
+			return std::shared_ptr<image_view>{shared_from_this(), &view};
+		}));
 	}
 
 private:
 
 	auto create_impl() -> void {
-		const auto& vk_physical_device = device.get().get_vk_physical_device();
+		invalidate_images();
+		image_views.clear();
+		images.clear();
 
-		const auto surface_capabilities  = vk_physical_device.getSurfaceCapabilitiesKHR(*wind.get().get_surface());
-		const auto surface_present_mdoes = vk_physical_device.getSurfacePresentModesKHR(*wind.get().get_surface());
+		const auto& vk_physical_device = device->get_vk_physical_device();
 
-		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_mdoes);
-		const auto swapchain_extent = select_swapchain_extent(surface_capabilities, size);
+		const auto surface_capabilities  = vk_physical_device->getSurfaceCapabilitiesKHR(*wind->get_surface());
+		const auto surface_present_modes = vk_physical_device->getSurfacePresentModesKHR(*wind->get_surface());
+
+		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_modes);
 		const auto pre_transform    = select_transform(surface_capabilities);
 		const auto composite_alpha  = select_composite_alpha(surface_capabilities);
 
-		auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
+		size = select_swapchain_extent(surface_capabilities, size);
+
+		// If the associated queues are from different queue families, we either have to explicitly
+		// transfer ownership of images between the queues, or we have to create the swapchain with
+		// imageSharingMode as vk::SharingMode::eConcurrent
+		const auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagsKHR{},
-			*wind.get().get_surface(),
+			*wind->get_surface(),
 			surface_capabilities.minImageCount,
 			format.format,
 			format.colorSpace,
-			swapchain_extent,
+			size,
 			1,
 			usage,
-			vk::SharingMode::eExclusive,
-			nullptr,
+			shared_queues.empty() ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+			shared_queues,
 			pre_transform,
 			composite_alpha,
 			present_mode,
@@ -163,51 +202,60 @@ private:
 			vk_swapchain ? **vk_swapchain : vk::SwapchainKHR{}
 		};
 
-		if (not shared_queues.empty()) {
-			// If the associated queues are from different queue families, we either have to explicitly
-			// transfer ownership of images between the queues, or we have to create the swapchain with
-			// imageSharingMode as vk::SharingMode::eConcurrent
-			swap_chain_create_info.imageSharingMode      = vk::SharingMode::eConcurrent;
-			swap_chain_create_info.queueFamilyIndexCount = static_cast<uint32_t>(shared_queues.size());
-			swap_chain_create_info.pQueueFamilyIndices   = shared_queues.data();
-		}
-
-		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device.get().get_vk_device(), swap_chain_create_info);
+		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device->get_vk_device(), swap_chain_create_info);
 
 		const auto swap_images = vk_swapchain->getImages();
+		image_count = swap_images.size();
+
+		auto img_info = image_info{};
+		img_info.create_info = vk::ImageCreateInfo{
+			vk::ImageCreateFlags{},
+			vk::ImageType::e2D,
+			format.format,
+			vk::Extent3D{size, 1},
+			1,
+			1,
+			vk::SampleCountFlagBits::e1,
+			vk::ImageTiling::eOptimal,
+			usage,
+			shared_queues.empty() ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+			shared_queues,
+			vk::ImageLayout::eUndefined
+		};
+
+		const auto view_info = image_view_info{
+			.format = format.format,
+			.components = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA},
+			.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
+		};
+
 		images.reserve(swap_images.size());
-		std::ranges::copy(swap_images, std::back_inserter(images));
+		image_views.reserve(swap_images.size());
+		for (auto img : swap_images) {
+			images.emplace_back(image{device, vk::Image{img}, img_info});
+			image_views.emplace_back(image_view{device, vk::Image{img}, view_info});
+		}
+	}
 
-		const auto component_mapping = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-		const auto subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
-
-		image_views.reserve(images.size());
-		for (const auto& image : images) {
-			const auto image_view_create_info = vk::ImageViewCreateInfo{
-				vk::ImageViewCreateFlags{},
-				image,
-				vk::ImageViewType::e2D,
-				format.format,
-				component_mapping,
-				subresource_range
-			};
-
-			image_views.emplace_back(device, image_view_create_info);
+	auto invalidate_images() noexcept -> void {
+		for (auto& img : images) {
+			const_cast<vk::raii::Image&>(img.get_vk_image()) = vk::raii::Image{nullptr}; //hacky way to prevent destruction of the swapchain-owned images
 		}
 	}
 
 
-	std::reference_wrapper<const logical_device> device;
-	std::reference_wrapper<const window> wind;
+	std::shared_ptr<logical_device> device;
+	std::shared_ptr<window> wind;
 
 	vk::SurfaceFormatKHR format = {};
 	vk::ImageUsageFlags usage = {};
 	vk::Extent2D size = {};
 	bool vsync = false;
+	size_t image_count = 0;
 	std::vector<uint32_t> shared_queues = {};
 
 	std::unique_ptr<vk::raii::SwapchainKHR> vk_swapchain;
-	std::vector<vk::Image> images;
+	std::vector<image> images;
 	std::vector<image_view> image_views;
 };
 

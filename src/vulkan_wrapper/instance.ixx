@@ -2,6 +2,7 @@ module;
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@ module;
 export module vkw.instance;
 
 import vkw.debug;
+import vkw.util;
 
 
 namespace vkw {
@@ -184,8 +186,13 @@ auto create_instance(
 }
 
 
-export class instance {
+export class instance : public std::enable_shared_from_this<instance> {
 public:
+	[[nodiscard]]
+	static auto create(const app_info& app_cfg, const instance_info& instance_cfg, const debug_info& debug_cfg) -> std::shared_ptr<instance> {
+		return std::make_shared<instance>(app_cfg, instance_cfg, debug_cfg);
+	}
+
 	instance(const app_info& app_cfg, const instance_info& instance_cfg, const debug_info& debug_cfg) :
 		app_config(app_cfg),
 		instance_config(process_config(vk_context, instance_cfg, debug_cfg)),
@@ -199,7 +206,6 @@ public:
 		// Enumerate physical devices
 		physical_devices = vk::raii::PhysicalDevices{vk_instance};
 	}
-
 
 	[[nodiscard]]
 	auto get_app_info() const noexcept -> const app_info& {
@@ -237,18 +243,15 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_physical_device(uint32_t idx) -> vk::raii::PhysicalDevice& {
-		return physical_devices.at(idx);
+	auto get_physical_device(uint32_t idx) -> std::shared_ptr<vk::raii::PhysicalDevice> {
+		return std::shared_ptr<vk::raii::PhysicalDevice>(shared_from_this(), &physical_devices.at(idx));
 	}
 
 	[[nodiscard]]
-	auto get_physical_device(uint32_t idx) const -> const vk::raii::PhysicalDevice& {
-		return physical_devices.at(idx);
-	}
-
-	[[nodiscard]]
-	auto get_physical_devices() const noexcept -> const std::vector<vk::raii::PhysicalDevice>& {
-		return physical_devices;
+	auto get_physical_devices() const noexcept -> std::vector<std::shared_ptr<vk::raii::PhysicalDevice>> {
+		return vkw::util::to_vector(std::views::transform(physical_devices, [this](const auto& device) {
+			return std::shared_ptr<vk::raii::PhysicalDevice>(shared_from_this(), const_cast<vk::raii::PhysicalDevice*>(&device));
+		}));
 	}
 
 private:

@@ -1,6 +1,7 @@
 module;
 
 #include <functional>
+#include <memory>
 #include <span>
 #include <tuple>
 
@@ -12,8 +13,8 @@ import vkw.logical_device;
 import vkw.util;
 
 
+namespace vkw {
 
-export namespace vkw {
 export struct image_info {
 	image_info() {
 		create_info.imageType     = vk::ImageType::e2D;
@@ -31,21 +32,38 @@ export struct image_info {
 	vk::MemoryPropertyFlags memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal;
 };
 
-
-[[nodiscard]]
-auto create_memory(const vkw::logical_device& device, const vk::raii::Image& vk_image, vk::MemoryPropertyFlags memory_properties) -> vk::raii::DeviceMemory {
-	auto memory = device.create_device_memory(vk_image.getMemoryRequirements(), memory_properties);
-	vk_image.bindMemory(*memory, 0);
-	return memory;
-}
+export struct image_view_info {
+	vk::ImageViewCreateFlags  flags = {};
+	vk::ImageViewType         view_type = vk::ImageViewType::e2D;
+	vk::Format                format = vk::Format::eR8G8B8A8Srgb;
+	vk::ComponentMapping      components = {vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
+	vk::ImageSubresourceRange subresource_range = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+};
 
 
 export class image {
-public:
-	image(const logical_device& device, const image_info& info) :
+	friend class swapchain;
+
+	image(std::shared_ptr<logical_device> logic_device, vk::Image img, const image_info& info) :
+		device(std::move(logic_device)),
 		info(info),
-		vk_image(device.get_vk_device(), info.create_info),
-		device_memory(create_memory(device, vk_image, info.memory_properties)) {
+		vk_image(device->get_vk_device(), img),
+		device_memory(nullptr) {
+	}
+
+public:
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, const image_info& info) -> std::shared_ptr<image> {
+		return std::make_shared<image>(std::move(device), info);
+	}
+
+	image(std::shared_ptr<logical_device> logic_device, const image_info& info) :
+		device(std::move(logic_device)),
+		info(info),
+		vk_image(device->get_vk_device(), info.create_info),
+		device_memory(device->create_device_memory(vk_image.getMemoryRequirements(), info.memory_properties)) {
+
+		vk_image.bindMemory(*device_memory, 0);
 	}
 
 	[[nodiscard]]
@@ -64,6 +82,7 @@ public:
 	}
 
 private:
+	std::shared_ptr<logical_device> device;
 
 	image_info info;
 
@@ -73,14 +92,54 @@ private:
 
 
 export class image_view {
-public:
-	image_view(const logical_device& device, const vk::ImageViewCreateInfo& info) :
+	friend class swapchain;
+
+	image_view(std::shared_ptr<logical_device> logic_device, vk::Image img, const image_view_info& info) :
+		device(std::move(logic_device)),
+		img(nullptr),
 		info(info),
-		view(device.get_vk_device(), info) {
+		view(nullptr) {
+
+		view = vk::raii::ImageView{
+			device->get_vk_device(),
+			vk::ImageViewCreateInfo{
+				info.flags,
+				img,
+				info.view_type,
+				info.format,
+				info.components,
+				info.subresource_range
+			}
+		};
+	}
+
+public:
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, std::shared_ptr<image> img, const image_view_info& info) -> std::shared_ptr<image_view> {
+		return std::make_shared<image_view>(std::move(device), std::move(img), info);
+	}
+
+	image_view(std::shared_ptr<logical_device> logic_device, std::shared_ptr<image> src_img, const image_view_info& info) :
+		device(std::move(logic_device)),
+		img(std::move(src_img)),
+		info(info),
+		view(nullptr) {
+
+		view = vk::raii::ImageView{
+			device->get_vk_device(),
+			vk::ImageViewCreateInfo{
+				info.flags,
+				*img->get_vk_image(),
+				info.view_type,
+				info.format,
+				info.components,
+				info.subresource_range
+			}
+		};
 	}
 
 	[[nodiscard]]
-	auto get_info() const noexcept -> const vk::ImageViewCreateInfo& {
+	auto get_info() const noexcept -> const image_view_info& {
 		return info;
 	}
 
@@ -90,7 +149,10 @@ public:
 	}
 
 private:
-	vk::ImageViewCreateInfo info;
+	std::shared_ptr<logical_device> device;
+	std::shared_ptr<image> img;
+
+	image_view_info info;
 	vk::raii::ImageView view;
 };
 

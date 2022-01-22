@@ -2,6 +2,7 @@ module;
 
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <ranges>
 #include <utility>
 #include <vector>
@@ -84,9 +85,14 @@ private:
 
 export class command_batch {
 public:
-	command_batch(const logical_device& device, uint32_t frame_count, uint32_t queue_family) :
-		device(device),
-		pools(create_pools(device, frame_count, queue_family)),
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, uint32_t frame_count, uint32_t queue_family) -> std::shared_ptr<command_batch> {
+		return std::make_shared<command_batch>(std::move(device), frame_count, queue_family);
+	}
+
+	command_batch(std::shared_ptr<logical_device> logic_device, uint32_t frame_count, uint32_t queue_family) :
+		device(std::move(logic_device)),
+		pools(create_pools(*device, frame_count, queue_family)),
 		queue_family(queue_family) {
 	}
 
@@ -119,7 +125,7 @@ public:
 
 	auto add_command(const std::function<void(const vk::raii::CommandBuffer&)>& func) -> void {
 		assert(func != nullptr);
-		commands.emplace_back(device.get(), pools).set_function(func);
+		commands.emplace_back(*device, pools).set_function(func);
 	}
 
 	// TODO
@@ -142,7 +148,7 @@ public:
 
 private:
 
-	std::reference_wrapper<const logical_device> device;
+	std::shared_ptr<logical_device> device;
 	std::vector<vk::raii::CommandPool> pools;
 	std::vector<command> commands;
 	uint32_t queue_family;

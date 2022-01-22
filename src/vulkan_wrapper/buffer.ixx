@@ -3,6 +3,7 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <span>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -14,6 +15,7 @@ import vkw.logical_device;
 import vkw.queue;
 import vkw.util;
 
+
 export namespace vkw {
 
 template<typename T = void>
@@ -24,17 +26,33 @@ class buffer;
 template<>
 class buffer<void> {
 public:
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		size_t                          size_bytes,
+		vk::BufferUsageFlags            usage,
+		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+	) -> std::shared_ptr<buffer<void>> {
+		return std::make_shared<buffer<void>>(std::move(device), size_bytes, usage, property_flags);
+	}
+
 	buffer(
-		const logical_device&   device,
-		size_t                  size_bytes,
-		vk::BufferUsageFlags    usage,
-		vk::MemoryPropertyFlags property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+		std::shared_ptr<logical_device> logic_device,
+		size_t                          size_bytes,
+		vk::BufferUsageFlags            usage,
+		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
 	) :
-		vk_buffer(create_buffer(device, size_bytes, usage)),
-		device_memory(device.create_device_memory(vk_buffer.getMemoryRequirements(), property_flags)),
+		device(std::move(logic_device)),
+		vk_buffer(nullptr),
+		device_memory(nullptr),
 		size_bytes(size_bytes),
 	    usage(usage),
 	    property_flags(property_flags) {
+
+		assert(size_bytes > 0);
+
+		vk_buffer = vk::raii::Buffer{device->get_vk_device(), vk::BufferCreateInfo{vk::BufferCreateFlags{}, size_bytes, usage}};
+		device_memory = device->create_device_memory(vk_buffer.getMemoryRequirements(), property_flags);
 
 		vk_buffer.bindMemory(*device_memory, 0);
 
@@ -73,22 +91,20 @@ public:
 	}
 
 	auto upload(
-		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
 		std::span<const std::byte>   data,
 		vk::DeviceSize               offset = 0
 	) -> void {
 		auto command_buffers = vk::raii::CommandBuffers{
-			device.get_vk_device(),
+			device->get_vk_device(),
 			vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}
 		};
 
-		upload(device, command_buffers.front(), queue, data, offset);
+		upload(command_buffers.front(), queue, data, offset);
 	}
 
 	auto upload(
-		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
 		std::span<const std::byte>     data,
@@ -105,11 +121,11 @@ public:
         command_buffer.copyBuffer(*staging_buffer.vk_buffer, *this->vk_buffer, vk::BufferCopy{0, offset, data.size_bytes()});
         command_buffer.end();
 
-		const auto fence = vk::raii::Fence{device.get_vk_device(), vk::FenceCreateInfo{}};
+		const auto fence = vk::raii::Fence{device->get_vk_device(), vk::FenceCreateInfo{}};
 
         const auto submit_info = vk::SubmitInfo{nullptr, nullptr, *command_buffer};
         queue.submit(submit_info, *fence);
-		const auto result = device.get_vk_device().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+		const auto result = device->get_vk_device().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 		if (result != vk::Result::eSuccess) {
 			// TODO: report error
@@ -132,13 +148,7 @@ public:
 */
 
 private:
-
-	[[nodiscard]]
-	static auto create_buffer(const logical_device& device, size_t bytes, vk::BufferUsageFlags usage) -> vk::raii::Buffer {
-		assert(bytes > 0);
-		const auto create_info = vk::BufferCreateInfo{vk::BufferCreateFlags{}, bytes, usage};
-		return vk::raii::Buffer{device.get_vk_device(), create_info};
-	}
+	std::shared_ptr<logical_device> device;
 
 	vk::raii::Buffer       vk_buffer;
 	vk::raii::DeviceMemory device_memory;
@@ -156,15 +166,24 @@ private:
 template<typename T>
 class buffer : public buffer<void> {
 public:
-	buffer(
-		const logical_device&   device,
-		size_t                  count,
-		vk::BufferUsageFlags    usage,
-		vk::MemoryPropertyFlags property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-	) :
-		buffer<void>(device, count * sizeof(T), usage, property_flags) {
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		size_t                          count,
+		vk::BufferUsageFlags            usage,
+		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+	) -> std::shared_ptr<buffer<T>> {
+		return std::make_shared<buffer<T>>(std::move(device), count, usage, property_flags);
 	}
 
+	buffer(
+		std::shared_ptr<logical_device> device,
+		size_t                          count,
+		vk::BufferUsageFlags            usage,
+		vk::MemoryPropertyFlags         property_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+	) :
+		buffer<void>(std::move(device), count * sizeof(T), usage, property_flags) {
+	}
 
 	[[nodiscard]]
 	auto get_size() const noexcept -> size_t {
@@ -182,44 +201,40 @@ public:
 
 
 	auto upload(
-		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
 		const T&                     data,
 		size_t                       element_offset = 0
 	) -> void {
-		upload(device, command_pool, queue, std::span{&data, 1}, element_offset);
+		upload(command_pool, queue, std::span{&data, 1}, element_offset);
 	}
 
 	auto upload(
-		const logical_device&        device,
 		const vk::raii::CommandPool& command_pool,
 		const queue&                 queue,
 		std::span<const T>           data,
 		size_t                       element_offset = 0
 	) -> void {
-		buffer<void>::upload(device, command_pool, queue, std::as_bytes(data), element_offset * sizeof(T));
+		buffer<void>::upload(command_pool, queue, std::as_bytes(data), element_offset * sizeof(T));
 	}
 
 
 	auto upload(
-		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
 		const T&                       data,
 		size_t                         element_offset = 0
 	) -> void {
-		upload(device, command_buffer, queue, std::span{&data, 1}, element_offset);
+		upload(command_buffer, queue, std::span{&data, 1}, element_offset);
 	}
 
 	auto upload(
-		const logical_device&          device,
 		const vk::raii::CommandBuffer& command_buffer,
 		const queue&                   queue,
 		std::span<const T>             data,
 		size_t                         element_offset = 0
 	) -> void {
-		buffer<void>::upload(device, command_buffer, queue, std::as_bytes(data), element_offset * sizeof(T));
+		buffer<void>::upload(command_buffer, queue, std::as_bytes(data), element_offset * sizeof(T));
 	}
 
 /*

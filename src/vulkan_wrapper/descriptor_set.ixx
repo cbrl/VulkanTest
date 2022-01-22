@@ -1,14 +1,17 @@
 module;
 
+#include <memory>
 #include <numeric>
 #include <ranges>
-#include <span>
 #include <set>
+#include <span>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
+
+#include "descriptor_pool_fwd.h"
 
 export module vkw.descriptor_set;
 
@@ -33,10 +36,10 @@ using write_sampler_set      = write_descriptor_set<sampler>;
 using write_buffer_set       = write_descriptor_set<buffer<void>>;
 using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
 
-class descriptor_set {
-	using write_set_variant = std::variant<write_image_set, write_sampler_set, write_buffer_set, write_texel_buffer_set>;
 
-	struct descriptor_binding_comparator {
+class descriptor_set_layout {
+private:
+	struct binding_comparator {
 		using is_transparent = void;
 
 		constexpr auto operator()(const vk::DescriptorSetLayoutBinding& lhs, const vk::DescriptorSetLayoutBinding& rhs) const -> bool {
@@ -51,12 +54,72 @@ class descriptor_set {
 	};
 
 public:
-	descriptor_set(
-		vk::raii::DescriptorSet&& handle,
-		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings,
+		vk::DescriptorSetLayoutCreateFlags flags = {}
+	) -> std::shared_ptr<descriptor_set_layout> {
+		return std::make_shared<descriptor_set_layout>(std::move(device), layout_bindings, flags);
+	}
+
+	descriptor_set_layout(
+		std::shared_ptr<logical_device> logic_device,
+		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings,
+		vk::DescriptorSetLayoutCreateFlags flags = {}
 	) :
-		handle(std::move(handle)),
+		device(std::move(logic_device)),
+		layout(nullptr),
 		bindings(layout_bindings.begin(), layout_bindings.end()) {
+
+		const auto create_info = vk::DescriptorSetLayoutCreateInfo{flags, layout_bindings};
+		layout = vk::raii::DescriptorSetLayout{device->get_vk_device(), create_info};
+	}
+
+	[[nodiscard]]
+	auto get_vk_layout() const noexcept -> const vk::raii::DescriptorSetLayout& {
+		return layout;
+	}
+
+	[[nodiscard]]
+	auto get_bindings() const noexcept -> const std::set<vk::DescriptorSetLayoutBinding, binding_comparator>& {
+		return bindings;
+	}
+
+private:
+	std::shared_ptr<logical_device> device;
+
+	vk::raii::DescriptorSetLayout layout;
+	std::set<vk::DescriptorSetLayoutBinding, binding_comparator> bindings;
+};
+
+
+class descriptor_set {
+	friend class descriptor_pool;
+
+	using write_set_variant = std::variant<write_image_set, write_sampler_set, write_buffer_set, write_texel_buffer_set>;
+
+public:
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		std::shared_ptr<descriptor_pool> pool,
+		std::shared_ptr<descriptor_set_layout> layout,
+		vk::raii::DescriptorSet&& handle
+	) -> std::shared_ptr<descriptor_set> {
+		return std::make_shared<descriptor_set>(std::move(device), std::move(pool), std::move(layout), std::move(handle));
+	}
+
+	descriptor_set(
+		std::shared_ptr<logical_device> device,
+		std::shared_ptr<descriptor_pool> pool,
+		std::shared_ptr<descriptor_set_layout> layout,
+		vk::raii::DescriptorSet&& handle
+	) :
+		device(std::move(device)),
+		pool(std::move(pool)),
+		layout(std::move(layout)),
+		handle(std::move(handle)) {
 	}
 
 	[[nodiscard]]
@@ -64,11 +127,11 @@ public:
 		return handle;
 	}
 
-	auto update(const logical_device& device, const write_image_set& images) -> void {
+	auto update(const write_image_set& images) -> void {
 		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](const texture& tex) {
 			return vk::DescriptorImageInfo{
 				vk::Sampler{},
-				*tex.get_image_view().get_vk_image_view(),
+				*tex.get_image_view()->get_vk_image_view(),
 				vk::ImageLayout::eShaderReadOnlyOptimal
 			};
 		}));
@@ -81,10 +144,10 @@ public:
 			texture_infos,
 		};
 
-		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const logical_device& device, const write_sampler_set& samplers) -> void {
+	auto update(const write_sampler_set& samplers) -> void {
 		const auto sampler_infos = vkw::util::to_vector(std::views::transform(samplers.data, [](const sampler& samp) {
 			return vk::DescriptorImageInfo{
 				*samp.get_vk_sampler(),
@@ -101,10 +164,10 @@ public:
 			sampler_infos,
 		};
 
-		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const logical_device& device, const write_buffer_set& buffers) -> void {
+	auto update(const write_buffer_set& buffers) -> void {
 		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers.data, [](const buffer<>& buf) {
 			return vk::DescriptorBufferInfo{*buf.get_vk_buffer(), 0, VK_WHOLE_SIZE};
 		}));
@@ -118,10 +181,10 @@ public:
 			buffer_infos
 		};
 
-		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const logical_device& device, const write_texel_buffer_set& buffers) -> void {
+	auto update(const write_texel_buffer_set& buffers) -> void {
 		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffers.data));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
@@ -134,10 +197,10 @@ public:
 			view_handles
 		};
 	
-		device.get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const logical_device& device, const std::vector<write_set_variant>& buffer_data) -> void {
+	auto update(const std::vector<write_set_variant>& buffer_data) -> void {
 		auto image_infos        = std::vector<std::vector<vk::DescriptorImageInfo>>{};
 		auto sampler_infos      = std::vector<std::vector<vk::DescriptorImageInfo>>{};
 		auto buffer_infos       = std::vector<std::vector<vk::DescriptorBufferInfo>>{};
@@ -157,7 +220,7 @@ public:
 				for (const texture& tex : image_set->data) {
 					info_vec.push_back(vk::DescriptorImageInfo{
 						vk::Sampler{},
-						*tex.get_image_view().get_vk_image_view(),
+						*tex.get_image_view()->get_vk_image_view(),
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}
@@ -201,19 +264,22 @@ public:
 			}
 		}
 
-		device.get_vk_device().updateDescriptorSets(write_descriptor_sets, nullptr);
+		device->get_vk_device().updateDescriptorSets(write_descriptor_sets, nullptr);
 	}
 
 private:
 
 	[[nodiscard]]
 	auto get_binding(uint32_t binding_index) const -> const vk::DescriptorSetLayoutBinding& {
-		assert(bindings.contains(binding_index));
-		return *bindings.find(binding_index);
+		assert(layout->get_bindings().contains(binding_index));
+		return *layout->get_bindings().find(binding_index);
 	}
 
+	std::shared_ptr<logical_device> device;
+	std::shared_ptr<descriptor_pool> pool;
+	std::shared_ptr<descriptor_set_layout> layout;
+
 	vk::raii::DescriptorSet handle;
-	std::set<vk::DescriptorSetLayoutBinding, descriptor_binding_comparator> bindings;
 };
 
 } //namespace vkw

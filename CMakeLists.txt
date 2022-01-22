@@ -50,7 +50,7 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/util.ixx
 	src/vulkan_wrapper/window.ixx
 	#src/glslang/StandAlone/ResourceLimits.cpp
-)
+ "src/vulkan_wrapper/descriptor_pool_fwd.h")
 
 # Set target compile options
 target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:DEBUG>:${DEBUG_OPTIONS}>")

@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <memory>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -17,6 +18,7 @@ import vkw.descriptor_set;
 import vkw.logical_device;
 import vkw.pipeline_layout;
 import vkw.render_pass;
+import vkw.render_pass_single;
 import vkw.shader;
 import vkw.util;
 
@@ -31,13 +33,8 @@ class graphics_pipeline_info_base {
 
 public:
 	struct render_pass_details {
-		std::reference_wrapper<const render_pass> pass;
+		std::shared_ptr<render_pass> pass;
 		uint32_t subpass = 0;
-	};
-
-	struct render_pass_single_details {
-		std::vector<vk::Format> color_formats;
-		vk::Format depth_stencil_format;
 	};
 
 	graphics_pipeline_info_base() {
@@ -113,13 +110,13 @@ public:
 	vk::PipelineDynamicStateCreateInfo       dynamic_state;
 
 	// The shader stages this pipeline is composed of
-	std::vector<std::reference_wrapper<const shader_stage>> shader_stages;
+	std::vector<std::shared_ptr<shader_stage>> shader_stages;
 
 	// The pipeline layout
-	const pipeline_layout* layout = nullptr;
+	std::shared_ptr<pipeline_layout> layout;
 
 	// The render pass to use
-	std::variant<std::monostate, render_pass_details, render_pass_single_details> pass_details;
+	std::variant<std::monostate, render_pass_details, std::shared_ptr<render_pass_single>> pass_details;
 
 private:
 
@@ -184,7 +181,7 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 			&info.color_blend_state,
 			&info.dynamic_state,
 			*info.layout->get_vk_layout(),
-			*pass_info->pass.get().get_vk_render_pass(),
+			*pass_info->pass->get_vk_render_pass(),
 			pass_info->subpass,
 			vk::Pipeline{},
 			-1
@@ -192,9 +189,11 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 
 		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
 	}
-	else if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_single_details>(&info.pass_details)) {
-		const auto pipeline_create_info = vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfoKHR>{
-			{
+	else if (const auto* pass = std::get_if<std::shared_ptr<render_pass_single>>(&info.pass_details)) {
+		const auto color_formats = (*pass)->get_color_formats();
+
+		const auto pipeline_create_info = vk::StructureChain{
+			vk::GraphicsPipelineCreateInfo{
 				vk::PipelineCreateFlags{},
 				stages,
 				&info.vertex_input_state,
@@ -212,11 +211,11 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 				vk::Pipeline{},
 				-1
 			},
-			{
+			vk::PipelineRenderingCreateInfoKHR{
 				0,
-				pass_info->color_formats,
-				pass_info->depth_stencil_format,
-				pass_info->depth_stencil_format
+				color_formats,
+				(*pass)->get_depth_stencil_format(),
+				(*pass)->get_depth_stencil_format()
 			}
 		};
 
@@ -230,13 +229,19 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 
 export class graphics_pipeline {
 public:
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, const graphics_pipeline_info& info, vk::raii::PipelineCache* cache = nullptr) -> std::shared_ptr<graphics_pipeline> {
+		return std::make_shared<graphics_pipeline>(std::move(device), info, cache);
+	}
+
 	graphics_pipeline(
-		const logical_device& device,
+		std::shared_ptr<logical_device> logic_device,
 		const graphics_pipeline_info& info,
 		vk::raii::PipelineCache* cache = nullptr
 	) :
+		device(std::move(logic_device)),
 		info(info),
-		vk_pipeline(create_pipeline(device, this->info, cache)),
+		vk_pipeline(create_pipeline(*device, this->info, cache)),
 		pipeline_cache(cache) {
 	}
 
@@ -273,6 +278,7 @@ public:
 	}
 
 private:
+	std::shared_ptr<logical_device> device;
 
 	graphics_pipeline_info info;
 

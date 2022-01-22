@@ -1,5 +1,6 @@
 module;
 
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -27,16 +28,28 @@ export class shader_stage {
 public:
 	static constexpr const char* entry_point_name = "main";
 
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		vk::ShaderStageFlagBits stage,
+		std::span<const uint32_t> shader_data,
+		std::span<const vk::SpecializationMapEntry> specializations = {},
+		std::span<const uint32_t> specialization_data = {}
+	) -> std::shared_ptr<shader_stage> {
+		return std::make_shared<shader_stage>(std::move(device), stage, shader_data, specializations, specialization_data);
+	}
+
 	shader_stage(
-		const logical_device& device,
+		std::shared_ptr<logical_device> logic_device,
 		vk::ShaderStageFlagBits stage,
 		std::span<const uint32_t> shader_data,
 		std::span<const vk::SpecializationMapEntry> specializations = {},
 		std::span<const uint32_t> specialization_data = {}
 	) :
+		device(std::move(logic_device)),
 		specialization_entries(specializations.begin(), specializations.end()),
 		specialization_data(specialization_data.begin(), specialization_data.end()),
-		shader_module(create_shader_module(device, shader_data)) {
+		shader_module(create_shader_module(*device, shader_data)) {
 
 		create_info.flags               = vk::PipelineShaderStageCreateFlags{};
 		create_info.stage               = stage;
@@ -44,10 +57,8 @@ public:
 		create_info.pName               = entry_point_name;
 		create_info.pSpecializationInfo = &specialization_info;
 
-		specialization_info.mapEntryCount = static_cast<uint32_t>(specialization_entries.size());
-		specialization_info.pMapEntries   = specialization_entries.data();
-		specialization_info.dataSize      = specialization_data.size_bytes();
-		specialization_info.pData         = this->specialization_data.data();
+		specialization_info.setMapEntries(this->specialization_entries);
+		specialization_info.setData<uint32_t>(this->specialization_data);
 	}
 
 	[[nodiscard]]
@@ -66,6 +77,7 @@ public:
 	}
 
 private:
+	std::shared_ptr<logical_device> device;
 
 	vk::PipelineShaderStageCreateInfo create_info;
 	vk::SpecializationInfo specialization_info;

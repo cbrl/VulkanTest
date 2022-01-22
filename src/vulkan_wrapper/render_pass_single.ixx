@@ -1,6 +1,8 @@
 module;
 
 #include <algorithm>
+#include <array>
+#include <memory>
 #include <ranges>
 #include <span>
 #include <tuple>
@@ -11,11 +13,53 @@ module;
 export module vkw.render_pass_single;
 
 import vkw.image;
+import vkw.swapchain;
+import vkw.texture;
+import vkw.util;
+
 
 export namespace vkw {
 
+struct color_attachment {
+	std::shared_ptr<image>      img;
+	std::shared_ptr<image_view> img_view;
+	vk::ImageLayout             image_layout = vk::ImageLayout::eColorAttachmentOptimal;
+	vk::AttachmentLoadOp        load_op = vk::AttachmentLoadOp::eClear;
+	vk::AttachmentStoreOp       store_op = vk::AttachmentStoreOp::eStore;
+	vk::ClearValue              clear_value = vk::ClearColorValue{std::array{0.0f, 0.0f, 0.0f, 1.0f}};
+
+	std::shared_ptr<image_view> resolve_img_view;
+	vk::ResolveModeFlagBits     resolve_mode = vk::ResolveModeFlagBits::eNone;
+	vk::ImageLayout             resolve_image_layout = vk::ImageLayout::eUndefined;
+
+	vk::ImageLayout             initial_layout = vk::ImageLayout::eUndefined;
+	vk::ImageLayout             final_layout = vk::ImageLayout::ePresentSrcKHR;
+};
+
+struct depth_attachment {
+	std::shared_ptr<image>      img;
+	std::shared_ptr<image_view> img_view;
+	vk::ImageLayout             image_layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+	vk::AttachmentLoadOp        load_op = vk::AttachmentLoadOp::eClear;
+	vk::AttachmentStoreOp       store_op = vk::AttachmentStoreOp::eStore;
+	vk::ClearValue              clear_value = vk::ClearDepthStencilValue{1.0f, 0};
+
+	std::shared_ptr<image_view> resolve_img_view;
+	vk::ResolveModeFlagBits     resolve_mode = vk::ResolveModeFlagBits::eNone;
+	vk::ImageLayout             resolve_image_layout = vk::ImageLayout::eUndefined;
+
+	vk::ImageLayout             initial_layout = vk::ImageLayout::eUndefined;
+	vk::ImageLayout             final_layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+};
+
+/// A full render pass consisting of a single pass. Utilizes VK_KHR_dynamic_render_pass
 class render_pass_single {
 public:
+	[[nodiscard]]
+	static auto create() -> std::shared_ptr<render_pass_single> {
+		return std::make_shared<render_pass_single>();
+	}
+
 
 	// Member Functions - Render Area
 	//----------------------------------------------------------------------------------------------------
@@ -32,123 +76,161 @@ public:
 	// Member Functions - Frame Color Attachment
 	//----------------------------------------------------------------------------------------------------
 
-	auto set_frame_color_attachments(
-		uint32_t frame,
-		vk::RenderingAttachmentInfoKHR info,
-		vk::Image img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout
-	) -> void {
-		set_frame_color_attachments(frame, std::span{&info, 1}, std::span{&img, 1}, std::span{&initial_layout, 1}, std::span{&final_layout, 1});
+	auto set_frame_color_attachments(uint32_t frame, const color_attachment& attachment) -> void {
+		set_frame_color_attachments(frame, std::span{&attachment, 1});
 	}
 
-	auto set_frame_color_attachments(
-		uint32_t frame,
-		std::span<const vk::RenderingAttachmentInfoKHR> info,
-		std::span<const vk::Image> images,
-		std::span<const vk::ImageLayout> initial_layouts,
-		std::span<const vk::ImageLayout> final_layouts
-	) -> void {
-		assert(info.size() == images.size() == initial_layouts.size() == final_layouts.size());
-
+	auto set_frame_color_attachments(uint32_t frame, std::span<const color_attachment> attachments) -> void {
 		const auto new_size = std::max<size_t>(color_attachments.size(), frame + 1);
 
 		color_attachments.resize(new_size);
-		color_attachments[frame].insert(color_attachments[frame].end(), info.begin(), info.end());
-
 		color_images.resize(new_size);
-		color_images[frame].insert(color_images[frame].end(), images.begin(), images.end());
-
+		color_image_views.resize(new_size);
+		color_resolve_image_views.resize(new_size);
 		color_initial_layouts.resize(new_size);
-		color_initial_layouts[frame].insert(color_initial_layouts[frame].end(), initial_layouts.begin(), initial_layouts.end());
-
 		color_final_layouts.resize(new_size);
-		color_final_layouts[frame].insert(color_final_layouts[frame].end(), final_layouts.begin(), final_layouts.end());
+
+		for (const auto& attachment : attachments) {
+			color_attachments[frame].push_back(vk::RenderingAttachmentInfoKHR{
+				*attachment.img_view->get_vk_image_view(),
+				attachment.image_layout,
+				attachment.resolve_mode,
+				attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_image_view() : vk::ImageView{},
+				attachment.resolve_image_layout,
+				attachment.load_op,
+				attachment.store_op,
+				attachment.clear_value
+			});
+
+			color_images[frame].push_back(attachment.img);
+			color_image_views[frame].push_back(attachment.img_view);
+			color_resolve_image_views[frame].push_back(attachment.resolve_img_view);
+			color_initial_layouts[frame].push_back(attachment.initial_layout);
+			color_final_layouts[frame].push_back(attachment.final_layout);
+		}
 
 		rebuild_color_barriers();
+
+		// Ensure the new attachment's formats are the same as the other frames
+		#ifndef NDEBUG
+		using namespace std::ranges;
+		auto as_formats = views::transform([](auto&& view) { return view->get_info().format; });
+		auto as_format_vecs = views::transform([&](auto&& vec) { return vec | as_formats; });
+		auto is_permutation_of_new_frame = [&](auto&& vec) { return is_permutation(vec, color_image_views.back() | as_formats); };
+		assert(all_of(color_image_views | views::take(color_image_views.size() - 1) | as_format_vecs, is_permutation_of_new_frame));
+		#endif //NDEBUG
 	}
 
-	auto add_frame_color_attachments(
-		vk::RenderingAttachmentInfoKHR info,
-		vk::Image img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout
-	) -> void {
-		add_frame_color_attachments(std::span{&info, 1}, std::span{&img, 1}, std::span{&initial_layout, 1}, std::span{&final_layout, 1});
+	auto add_frame_color_attachments(const color_attachment& attachment) -> void {
+		add_frame_color_attachments(std::span{&attachment, 1});
 	}
 
-	auto add_frame_color_attachments(
-		std::span<const vk::RenderingAttachmentInfoKHR> info,
-		std::span<const vk::Image> images,
-		std::span<const vk::ImageLayout> initial_layouts,
-		std::span<const vk::ImageLayout> final_layouts
-	) -> void {
-		set_frame_color_attachments(static_cast<uint32_t>(color_attachments.size()), info, images, initial_layouts, final_layouts);
+	auto add_frame_color_attachments(std::span<const color_attachment> attachments) -> void {
+		set_frame_color_attachments(static_cast<uint32_t>(color_attachments.size()), attachments);
+	}
+
+	auto add_frame_color_attachments(std::span<const std::shared_ptr<texture>> textures, color_attachment attachment) -> void {
+		for (const auto& tex : textures) {
+			attachment.img = tex->get_image();
+			attachment.img_view = tex->get_image_view();
+
+			add_frame_color_attachments(attachment);
+		}
+	}
+
+	auto add_frame_color_attachments(std::shared_ptr<swapchain> swap, color_attachment attachment) -> void {
+		for (auto i : std::views::iota(size_t{0}, swap->get_image_count())) {
+			attachment.img = swap->get_image(i);
+			attachment.img_view = swap->get_image_view(i);
+
+			add_frame_color_attachments(attachment);
+		}
 	}
 
 
 	// Member Functions - Depth Stencil Attachment
 	//----------------------------------------------------------------------------------------------------
 
-	auto set_depth_stencil_attachment(
-		uint32_t frame,
-		vk::RenderingAttachmentInfoKHR info,
-		const image& img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout
-	) -> void {
-		const auto aspect_mask = vkw::util::format_to_aspect(img.get_info().create_info.format);
+	auto set_depth_stencil_attachment(uint32_t frame, const depth_attachment& attachment) -> void {
+		assert(std::ranges::all_of(depth_stencil_image_views, [&](auto&& view) { return view->get_info().format == attachment.img_view->get_info().format; }));
+
+		const auto aspect_mask = vkw::util::format_to_aspect(attachment.img->get_info().create_info.format);
 		assert(aspect_mask & vk::ImageAspectFlagBits::eDepth);
 
 		const auto has_stencil = (aspect_mask & vk::ImageAspectFlagBits::eStencil) == vk::ImageAspectFlagBits::eStencil;
-		set_depth_stencil_attachment(frame, info, *img.get_vk_image(), initial_layout, final_layout, has_stencil);
-	}
-
-	auto set_depth_stencil_attachment(
-		uint32_t frame,
-		vk::RenderingAttachmentInfoKHR info,
-		vk::Image img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout,
-		bool has_stencil_buffer = false
-	) -> void {
 		const auto new_size = std::max<size_t>(depth_stencil_attachments.size(), frame + 1);
 
 		depth_stencil_attachments.resize(new_size);
-		depth_stencil_attachments[frame] = info;
+		depth_stencil_attachments[frame] = vk::RenderingAttachmentInfoKHR{
+			*attachment.img_view->get_vk_image_view(),
+			attachment.image_layout,
+			attachment.resolve_mode,
+			attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_image_view() : vk::ImageView{},
+			attachment.resolve_image_layout,
+			attachment.load_op,
+			attachment.store_op,
+			attachment.clear_value
+		};
 
 		depth_stencil_images.resize(new_size);
-		depth_stencil_images[frame] = img;
+		depth_stencil_images[frame] = attachment.img;
+
+		depth_stencil_image_views.resize(new_size);
+		depth_stencil_image_views[frame] = attachment.img_view;
+
+		depth_stencil_resolve_image_views.resize(new_size);
+		depth_stencil_resolve_image_views[frame] = attachment.resolve_img_view;
 
 		depth_initial_layouts.resize(new_size);
-		depth_initial_layouts[frame] = initial_layout;
-		
+		depth_initial_layouts[frame] = attachment.initial_layout;
+
 		depth_final_layouts.resize(new_size);
-		depth_final_layouts[frame] = final_layout;
+		depth_final_layouts[frame] = attachment.final_layout;
 
 		stencil_buffer.resize(new_size);
-		stencil_buffer[frame] = has_stencil_buffer;
+		stencil_buffer[frame] = has_stencil;
 
 		rebuild_depth_barriers();
 	}
 
-	auto add_depth_stencil_attachment(
-		vk::RenderingAttachmentInfoKHR info,
-		const image& img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout
-	) -> void {
-		set_depth_stencil_attachment(depth_stencil_attachments.size(), info, img, initial_layout, final_layout);
+	auto add_depth_stencil_attachment(const depth_attachment& attachment) -> void {
+		set_depth_stencil_attachment(depth_stencil_attachments.size(), attachment);
 	}
 
-	auto add_depth_stencil_attachment(
-		vk::RenderingAttachmentInfoKHR info,
-		vk::Image img,
-		vk::ImageLayout initial_layout,
-		vk::ImageLayout final_layout,
-		bool has_stencil_buffer = false
-	) -> void {
-		set_depth_stencil_attachment(depth_stencil_attachments.size(), info, img, initial_layout, final_layout, has_stencil_buffer);
+	auto add_depth_stencil_attachments(std::span<const std::shared_ptr<texture>> textures, depth_attachment attachment) -> void {
+		for (const auto& tex : textures) {
+			attachment.img = tex->get_image();
+			attachment.img_view = tex->get_image_view();
+
+			add_depth_stencil_attachment(attachment);
+		}
+	}
+
+
+	// Member Functions - Image Formats
+	//----------------------------------------------------------------------------------------------------
+
+	[[nodiscard]]
+	auto get_color_formats() const -> std::vector<vk::Format> {
+		using namespace std::views;
+
+		if (std::ranges::all_of(color_image_views, [](auto&& vec) { return vec.empty(); }) == 0) {
+			return {vk::Format::eUndefined};
+		}
+
+		// All frames should have the same attachment formats
+		auto result = vkw::util::to_vector(color_image_views.front() | transform([](auto&& view) { return view->get_info().format; }));
+
+		const auto [ret, last] = std::ranges::unique(result);
+		result.erase(ret, last);
+
+		return result;
+	}
+
+	[[nodiscard]]
+	auto get_depth_stencil_format() const -> vk::Format {
+		// All frames must have depth attachments with the same format
+		return depth_stencil_image_views.empty() ? vk::Format::eUndefined : depth_stencil_image_views[0]->get_info().format;
 	}
 
 
@@ -233,7 +315,7 @@ private:
 			for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
 				color_begin_barriers[frame].push_back(
 					std::get<2>(vkw::util::create_layout_barrier(
-						color_images[frame][i],
+						*color_images[frame][i]->get_vk_image(),
 						vk::ImageAspectFlagBits::eColor,
 						color_initial_layouts[frame][i],
 						color_attachments[frame][i].imageLayout
@@ -249,7 +331,7 @@ private:
 			for (auto i : std::views::iota(size_t{0}, color_images.at(frame).size())) {
 				color_end_barriers[frame].push_back(
 					std::get<2>(vkw::util::create_layout_barrier(
-						color_images[frame][i],
+						*color_images[frame][i]->get_vk_image(),
 						vk::ImageAspectFlagBits::eColor,
 						color_attachments[frame][i].imageLayout,
 						color_final_layouts[frame][i]
@@ -268,7 +350,7 @@ private:
 
 			depth_stencil_begin_barriers.push_back(
 				std::get<2>(vkw::util::create_layout_barrier(
-					depth_stencil_images[frame],
+					*depth_stencil_images[frame]->get_vk_image(),
 					aspect_flags,
 					depth_initial_layouts[frame],
 					depth_stencil_attachments[frame].imageLayout
@@ -284,7 +366,7 @@ private:
 
 			depth_stencil_end_barriers.push_back(
 				std::get<2>(vkw::util::create_layout_barrier(
-					depth_stencil_images[frame],
+					*depth_stencil_images[frame]->get_vk_image(),
 					aspect_flags,
 					depth_stencil_attachments[frame].imageLayout,
 					depth_final_layouts[frame]
@@ -298,7 +380,9 @@ private:
 
 	// Color attachment info
 	std::vector<std::vector<vk::RenderingAttachmentInfoKHR>> color_attachments;
-	std::vector<std::vector<vk::Image>> color_images;
+	std::vector<std::vector<std::shared_ptr<image>>> color_images;
+	std::vector<std::vector<std::shared_ptr<image_view>>> color_image_views;
+	std::vector<std::vector<std::shared_ptr<image_view>>> color_resolve_image_views;
 	std::vector<std::vector<vk::ImageLayout>> color_initial_layouts;
 	std::vector<std::vector<vk::ImageLayout>> color_final_layouts;
 
@@ -308,7 +392,9 @@ private:
 
 	// Depth stencil attachment info
 	std::vector<vk::RenderingAttachmentInfoKHR> depth_stencil_attachments;
-	std::vector<vk::Image> depth_stencil_images;
+	std::vector<std::shared_ptr<image>> depth_stencil_images;
+	std::vector<std::shared_ptr<image_view>> depth_stencil_image_views;
+	std::vector<std::shared_ptr<image_view>> depth_stencil_resolve_image_views;
 	std::vector<vk::ImageLayout> depth_initial_layouts;
 	std::vector<vk::ImageLayout> depth_final_layouts;
 	std::vector<bool> stencil_buffer;
@@ -316,7 +402,6 @@ private:
 	// Depth stencil barriers
 	std::vector<vk::ImageMemoryBarrier> depth_stencil_begin_barriers;
 	std::vector<vk::ImageMemoryBarrier> depth_stencil_end_barriers;
-
 };
 
 } //namespace vkw

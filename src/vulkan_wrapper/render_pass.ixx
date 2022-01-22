@@ -4,6 +4,7 @@ module;
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <ranges>
 #include <utility>
 #include <vector>
@@ -12,6 +13,7 @@ module;
 
 export module vkw.render_pass;
 
+import vkw.image;
 import vkw.logical_device;
 import vkw.util;
 import vkw.subpass;
@@ -20,13 +22,13 @@ import vkw.subpass;
 namespace vkw {
 
 export struct render_pass_info {
+	vk::Rect2D area_rect;
+
 	std::vector<std::reference_wrapper<const subpass>> subpasses;
 	std::vector<vk::SubpassDependency> subpass_dependencies;
 
-	std::vector<std::vector<vk::ImageView>> target_attachments;
+	std::vector<std::vector<std::shared_ptr<image_view>>> target_attachments;
 	std::vector<vk::AttachmentDescription> attachment_descriptions;
-
-	vk::Rect2D area_rect;
 };
 
 
@@ -50,10 +52,12 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 	framebuffers.reserve(info.target_attachments.size());
 
 	for (const auto& attachment : info.target_attachments) {
+		const auto view_handles = vkw::util::to_vector(std::views::transform(attachment, [](const auto& a) { return *a->get_vk_image_view(); }));
+
 		const auto create_info = vk::FramebufferCreateInfo{
 			vk::FramebufferCreateFlags{},
 			*pass,
-			attachment,
+			view_handles,
 			info.area_rect.extent.width,
 			info.area_rect.extent.height,
 			1
@@ -68,10 +72,11 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 
 export class render_pass {
 public:
-	render_pass(const logical_device& device, const render_pass_info& info) :
+	render_pass(std::shared_ptr<logical_device> logic_device, const render_pass_info& info) :
+		device(std::move(logic_device)),
 		info(info),
-		pass(create_render_pass(device, info)),
-		framebuffers(create_framebuffers(device, pass, info)) {
+		pass(create_render_pass(*device, info)),
+		framebuffers(create_framebuffers(*device, pass, info)) {
 	}
 
 	[[nodiscard]]
@@ -116,6 +121,7 @@ public:
 	}
 
 private:
+	std::shared_ptr<logical_device> device;
 
 	render_pass_info info;
 

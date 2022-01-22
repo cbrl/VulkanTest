@@ -1,7 +1,9 @@
 module;
 
+#include <memory>
 #include <ranges>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -16,39 +18,36 @@ import vkw.util;
 
 namespace vkw {
 
-[[nodiscard]]
-auto make_layout(
-	const logical_device& device,
-	std::span<const descriptor_set_layout> descriptor_layouts,
-	std::span<const vk::PushConstantRange> push_constant_ranges
-) -> vk::raii::PipelineLayout {
-
-	auto vk_layouts = std::vector<vk::DescriptorSetLayout>{};
-	vk_layouts.reserve(descriptor_layouts.size());
-
-	for (const auto& layout : descriptor_layouts) {
-		vk_layouts.push_back(*layout.get_vk_layout());
-	}
-
-	const auto layout_create_info = vk::PipelineLayoutCreateInfo{
-		vk::PipelineLayoutCreateFlags{},
-		vk_layouts,
-		push_constant_ranges
-	};
-
-	return vk::raii::PipelineLayout{device.get_vk_device(), layout_create_info};
-}
-
 export class pipeline_layout {
 public:
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		std::span<const std::shared_ptr<descriptor_set_layout>> layouts,
+		std::span<const vk::PushConstantRange> ranges
+	) -> std::shared_ptr<pipeline_layout> {
+		return std::make_shared<pipeline_layout>(std::move(device), layouts, ranges);
+	}
+
 	pipeline_layout(
-		const logical_device& device,
-		std::span<const descriptor_set_layout> layouts,
+		std::shared_ptr<logical_device> logic_device,
+		std::span<const std::shared_ptr<descriptor_set_layout>> layouts,
 		std::span<const vk::PushConstantRange> ranges
 	) :
+		device(std::move(logic_device)),
 		descriptor_layouts(layouts.begin(), layouts.end()),
 		push_constant_ranges(ranges.begin(), ranges.end()),
-		layout(make_layout(device, layouts, ranges)) {
+		layout(nullptr) {
+
+		const auto vk_layouts = vkw::util::to_vector(std::views::transform(descriptor_layouts, [](auto&& layout) { return *layout->get_vk_layout(); }));
+
+		const auto layout_create_info = vk::PipelineLayoutCreateInfo{
+			vk::PipelineLayoutCreateFlags{},
+			vk_layouts,
+			push_constant_ranges
+		};
+
+		layout = vk::raii::PipelineLayout{device->get_vk_device(), layout_create_info};
 	}
 
 	[[nodiscard]]
@@ -57,7 +56,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_descriptors() const noexcept -> std::span<const descriptor_set_layout> {
+	auto get_descriptors() const noexcept -> const std::vector<std::shared_ptr<descriptor_set_layout>>& {
 		return descriptor_layouts;
 	}
 
@@ -91,8 +90,9 @@ public:
 	}
 
 private:
+	std::shared_ptr<logical_device> device;
 
-	std::span<const descriptor_set_layout> descriptor_layouts;
+	std::vector<std::shared_ptr<descriptor_set_layout>> descriptor_layouts;
 	std::vector<vk::PushConstantRange> push_constant_ranges;
 
 	vk::raii::PipelineLayout layout;

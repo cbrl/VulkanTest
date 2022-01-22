@@ -1,5 +1,6 @@
 module;
 
+#include <memory>
 #include <numeric>
 #include <ranges>
 #include <span>
@@ -8,6 +9,8 @@ module;
 
 #include <vulkan/vulkan_raii.hpp>
 
+#include "descriptor_pool_fwd.h"
+
 export module vkw.descriptor_pool;
 
 import vkw.descriptor_set;
@@ -15,81 +18,51 @@ import vkw.logical_device;
 import vkw.util;
 
 
-[[nodiscard]]
-static auto create_layout(
-	const vkw::logical_device& device,
-	std::span<const vk::DescriptorSetLayoutBinding> bindings,
-	vk::DescriptorSetLayoutCreateFlags flags = {}
-) -> vk::raii::DescriptorSetLayout {
-
-	const auto create_info = vk::DescriptorSetLayoutCreateInfo{flags, bindings};
-	return vk::raii::DescriptorSetLayout{device.get_vk_device(), create_info};
-}
-
-[[nodiscard]]
-static auto create_descriptor_pool(
-	const vkw::logical_device& device,
-	std::span<const vk::DescriptorPoolSize> pool_sizes,
-	uint32_t max_sets,
-	vk::DescriptorPoolCreateFlags flags
-) -> vk::raii::DescriptorPool {
-
-	const auto pool_create_info = vk::DescriptorPoolCreateInfo{flags, max_sets, pool_sizes};
-	return vk::raii::DescriptorPool(device.get_vk_device(), pool_create_info);
-}
-
-
 export namespace vkw {
 
-class descriptor_set_layout {
+class descriptor_pool : public std::enable_shared_from_this<descriptor_pool> {
 public:
-	descriptor_set_layout(
-		const logical_device& device,
-		std::span<const vk::DescriptorSetLayoutBinding> layout_bindings,
-		vk::DescriptorSetLayoutCreateFlags flags = {}
-	) :
-		layout(create_layout(device, layout_bindings, flags)),
-		bindings(layout_bindings.begin(), layout_bindings.end()) {
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		std::span<const vk::DescriptorPoolSize> pool_sizes,
+		uint32_t max_sets,
+		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
+	) -> std::shared_ptr<descriptor_pool> {
+		return std::make_shared<descriptor_pool>(std::move(device), pool_sizes, max_sets, flags);
 	}
 
 	[[nodiscard]]
-	auto get_vk_layout() const noexcept -> const vk::raii::DescriptorSetLayout& {
-		return layout;
+	static auto create(
+		std::shared_ptr<logical_device> device,
+		std::span<const vk::DescriptorPoolSize> pool_sizes,
+		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
+	) -> std::shared_ptr<descriptor_pool> {
+		return std::make_shared<descriptor_pool>(std::move(device), pool_sizes, flags);
 	}
 
-	[[nodiscard]]
-	auto get_bindings() const noexcept -> const std::vector<vk::DescriptorSetLayoutBinding>& {
-		return bindings;
-	}
-
-private:
-
-	vk::raii::DescriptorSetLayout layout;
-	std::vector<vk::DescriptorSetLayoutBinding> bindings;
-};
-
-
-class descriptor_pool {
-public:
 	descriptor_pool(
-		const logical_device& device,
+		std::shared_ptr<logical_device> logic_device,
 		std::span<const vk::DescriptorPoolSize> pool_sizes,
 		uint32_t max_sets,
 		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
 	) :
-		device(device),
+		device(std::move(logic_device)),
 		sizes(pool_sizes.begin(), pool_sizes.end()),
 		max(max_sets),
-		pool(create_descriptor_pool(device, pool_sizes, max_sets, flags)) {
+		pool(nullptr) {
+
+		const auto pool_create_info = vk::DescriptorPoolCreateInfo{flags, max_sets, pool_sizes};
+		pool = vk::raii::DescriptorPool{device->get_vk_device(), pool_create_info};
 	}
 	
 	descriptor_pool(
-		const logical_device& device,
+		std::shared_ptr<logical_device> logic_device,
 		std::span<const vk::DescriptorPoolSize> pool_sizes,
 		vk::DescriptorPoolCreateFlags flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
 	) :
 		descriptor_pool(
-			device,
+			std::move(logic_device),
 			pool_sizes,
 			std::reduce(pool_sizes.begin(), pool_sizes.end(), uint32_t{0}, [](uint32_t sum, const auto& size) { return sum + size.descriptorCount; }),
 			flags
@@ -112,23 +85,24 @@ public:
 	}
 
 	[[nodiscard]]
-	auto allocate(const descriptor_set_layout& layout) -> descriptor_set {
-		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, *layout.get_vk_layout()};
-		auto descriptor = std::move(vk::raii::DescriptorSets{device.get().get_vk_device(), allocate_info}.front());
-		return descriptor_set{std::move(descriptor), layout.get_bindings()};
+	auto allocate(std::shared_ptr<descriptor_set_layout> layout) -> std::shared_ptr<descriptor_set> {
+		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, *layout->get_vk_layout()};
+		auto descriptor = std::move(vk::raii::DescriptorSets{device->get_vk_device(), allocate_info}.front());
+		return descriptor_set::create(device, shared_from_this(), std::move(layout), std::move(descriptor));
 	}
 
 	[[nodiscard]]
-	auto allocate(std::span<const descriptor_set_layout> layouts) -> std::vector<descriptor_set> {
-		const auto vk_layouts = vkw::util::to_vector(vkw::util::as_handles(std::views::transform(layouts, &descriptor_set_layout::get_vk_layout)));
+	auto allocate(std::span<const std::shared_ptr<descriptor_set_layout>> layouts) -> std::vector<std::shared_ptr<descriptor_set>> {
+		const auto vk_layouts = vkw::util::to_vector(std::views::transform(layouts, [](const auto& layout) { return *layout->get_vk_layout(); }));
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
-		auto sets = vk::raii::DescriptorSets{device.get().get_vk_device(), allocate_info};
+		auto sets = vk::raii::DescriptorSets{device->get_vk_device(), allocate_info};
 		
-		auto result = std::vector<descriptor_set>{};
+		auto result = std::vector<std::shared_ptr<descriptor_set>>{};
 		result.reserve(sets.size());
+
 		for (auto i : std::views::iota(size_t{0}, layouts.size())) {
-			result.emplace_back(std::move(sets[i]), layouts[i].get_bindings());
+			result.push_back(descriptor_set::create(device, shared_from_this(), layouts[i], std::move(sets[i])));
 		}
 
 		return result;
@@ -136,7 +110,7 @@ public:
 
 private:
 
-	std::reference_wrapper<const logical_device> device;
+	std::shared_ptr<logical_device> device;
 	
 	std::vector<vk::DescriptorPoolSize> sizes;
 	uint32_t max = 0;

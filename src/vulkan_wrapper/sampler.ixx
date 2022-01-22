@@ -1,5 +1,6 @@
 module;
 
+#include <memory>
 #include <vulkan/vulkan_raii.hpp>
 
 export module vkw.sampler;
@@ -20,8 +21,8 @@ struct sampler_info {
 
 [[nodiscard]]
 auto build_sampler_create_info(const vkw::logical_device& device, const vkw::sampler_info& info) -> vk::SamplerCreateInfo {
-	const auto features   = device.get_vk_physical_device().getFeatures();
-	const auto properties = device.get_vk_physical_device().getProperties();
+	const auto features   = device.get_vk_physical_device()->getFeatures();
+	const auto properties = device.get_vk_physical_device()->getProperties();
 
 	return vk::SamplerCreateInfo{
 		vk::SamplerCreateFlags{},
@@ -48,9 +49,15 @@ export namespace vkw {
 
 class sampler {
 public:
-	sampler(const logical_device& device, const sampler_info& info) :
-		handle(device.get_vk_device(), build_sampler_create_info(device, info)),
-		info(build_sampler_create_info(device, info)) {
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, const sampler_info& info) -> std::shared_ptr<sampler> {
+		return std::make_shared<sampler>(std::move(device), info);
+	}
+
+	sampler(std::shared_ptr<logical_device> logic_device, const sampler_info& sample_info) :
+		device(std::move(logic_device)),
+		info(build_sampler_create_info(*device, sample_info)),
+		handle(device->get_vk_device(), info) {
 	}
 
 	[[nodiscard]]
@@ -64,7 +71,7 @@ public:
 	}
 
 private:
-
+	std::shared_ptr<logical_device> device;
 	vk::SamplerCreateInfo info;
 	vk::raii::Sampler handle;
 };

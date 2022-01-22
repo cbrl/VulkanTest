@@ -128,16 +128,29 @@ class glfw_window : public window {
 	static inline size_t window_count{0};
 
 public:
+	[[nodiscard]]
+	static auto create(
+		std::shared_ptr<instance> ins,
+		const std::string& title,
+		const vk::Extent2D& size,
+		const std::vector<std::pair<int, int>>& int_hints = {},
+		const std::vector<std::pair<int, std::string>>& string_hints = {},
+		GLFWmonitor* monitor = nullptr
+	) -> std::shared_ptr<glfw_window> {
+		return std::make_shared<glfw_window>(std::move(ins), title, size, int_hints, string_hints, monitor);
+	}
+
 	glfw_window(
-		const instance& ins,
+		std::shared_ptr<instance> ins,
 		const std::string& title,
 		const vk::Extent2D& size,
 		const std::vector<std::pair<int, int>>& int_hints = {},
 		const std::vector<std::pair<int, std::string>>& string_hints = {},
 		GLFWmonitor* monitor = nullptr
 	) :
+		instance_ptr(ins),
 		handle(create_handle(title, size, int_hints, string_hints, monitor)),
-		surface(create_surface(ins.get_vk_instance(), handle)) {
+		surface(create_surface(ins->get_vk_instance(), handle)) {
 		glfwMakeContextCurrent(handle);
 
 		glfwSetWindowUserPointer(handle, this);
@@ -438,6 +451,8 @@ private:
 			glfwTerminate();
 		}
 	}
+
+	std::shared_ptr<instance> instance_ptr;
 
 	GLFWwindow* handle = nullptr;
 	vk::raii::SurfaceKHR surface;

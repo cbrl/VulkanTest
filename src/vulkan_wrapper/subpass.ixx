@@ -117,7 +117,7 @@ private:
 	}
 
 	auto update_depth_stencil_attachment() noexcept -> void {
-		description.pDepthStencilAttachment = &depth_stencil_attachment;
+		description.setPDepthStencilAttachment(&depth_stencil_attachment);
 	}
 
 	auto update_input_attachments() noexcept -> void {
