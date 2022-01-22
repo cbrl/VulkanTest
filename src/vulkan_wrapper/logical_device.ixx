@@ -17,10 +17,56 @@ export module vkw.logical_device;
 import vkw.debug;
 import vkw.queue;
 import vkw.util;
+import vkw.window;
 
 
 namespace vkw {
-export struct logical_device_info {
+export class logical_device_info {
+public:
+	logical_device_info(std::shared_ptr<vk::raii::PhysicalDevice> device) : physical_device(std::move(device)) {
+	}
+
+	[[nodiscard]]
+	auto get_physical_device() const noexcept -> const std::shared_ptr<vk::raii::PhysicalDevice>& {
+		return physical_device;
+	}
+
+	[[nodiscard]]
+	auto get_features() noexcept -> vk::PhysicalDeviceFeatures& {
+		return features;
+	}
+
+	[[nodiscard]]
+	auto get_features() const noexcept -> const vk::PhysicalDeviceFeatures& {
+		return features;
+	}
+
+	auto set_features(const vk::PhysicalDeviceFeatures& new_features) noexcept -> void {
+		features = new_features;
+	}
+
+	[[nodiscard]]
+	auto get_extensions() const noexcept -> const std::vector<const char*>& {
+		return extensions;
+	}
+
+	[[nodiscard]]
+	auto has_extension(const char* ext) const -> bool {
+		const auto it = std::ranges::find_if(extensions, [ext](const char* e) { return strcmp(e, ext) == 0; });
+		return it != extensions.end();
+	}
+
+	auto add_extension(const char* ext) -> void {
+		if (not has_extension(ext)) {
+			extensions.push_back(ext);
+		}
+	}
+
+	[[nodiscard]]
+	auto get_queue_family_info_list() const noexcept -> const std::vector<queue_family_info>& {
+		return queue_family_info_list;
+	}
+
 	auto add_all_queues(float priority) -> void {
 		queue_family_info_list.clear();
 		const auto properties = physical_device->getQueueFamilyProperties();
@@ -66,7 +112,7 @@ export struct logical_device_info {
 			return weak_idx;
 		}
 
-		return {};
+		return std::nullopt;
 	}
 
 	auto add_queues(uint32_t family_idx, float priority, uint32_t count = 1) -> void {
@@ -79,7 +125,7 @@ export struct logical_device_info {
 			}
 		}
 
-		// Add a new QueueFamilyInfo if one with the specified family index was not found
+		// Add a new queue_family_info if one with the specified family index was not found
 		const auto properties = physical_device->getQueueFamilyProperties();
 		auto& family_info = queue_family_info_list.emplace_back(family_idx, properties[family_idx].queueFlags);
 
@@ -88,6 +134,21 @@ export struct logical_device_info {
 		}
 	}
 
+	// Returns the indices of any queue families added to this device info which support presenting to the specified surface
+	[[nodiscard]]
+	auto get_present_queue_families(const window& win) const -> std::vector<uint32_t> {
+		auto result = std::vector<uint32_t>{};
+
+		for (const auto& family_info : queue_family_info_list) {
+			if (physical_device->getSurfaceSupportKHR(family_info.family_idx, *win.get_surface())) {
+				result.push_back(family_info.family_idx);
+			}
+		}
+
+		return result;
+	}
+
+private:
 	std::shared_ptr<vk::raii::PhysicalDevice> physical_device;
 	vk::PhysicalDeviceFeatures features;
 	std::vector<const char*> extensions;
@@ -99,30 +160,30 @@ export struct logical_device_info {
 auto process_config(const logical_device_info& info) -> logical_device_info {
 	auto output = info;
 
-	output.extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	output.extensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
+	output.add_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	output.add_extension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
 
-	output.features.samplerAnisotropy = VK_TRUE;
+	output.get_features().samplerAnisotropy = VK_TRUE;
 
 	return output;
 }
 
 [[nodiscard]]
 auto create_device(const logical_device_info& info) -> vk::raii::Device {
-	assert(info.physical_device != nullptr);
+	assert(info.get_physical_device() != nullptr);
 
 	// Validate the queues and extensions
-	debug::validate_queues(info.queue_family_info_list, info.physical_device->getQueueFamilyProperties());
-	debug::validate_extensions(info.extensions, info.physical_device->enumerateDeviceExtensionProperties());
+	debug::validate_queues(info.get_queue_family_info_list(), info.get_physical_device()->getQueueFamilyProperties());
+	debug::validate_extensions(info.get_extensions(), info.get_physical_device()->enumerateDeviceExtensionProperties());
 
 	// Build the queue create info list
 	auto queue_create_info_list = std::vector<vk::DeviceQueueCreateInfo>{};
-	queue_create_info_list.reserve(info.queue_family_info_list.size());
+	queue_create_info_list.reserve(info.get_queue_family_info_list().size());
 
 	auto priorities = std::vector<std::vector<float>>{};
-	priorities.reserve(info.queue_family_info_list.size());
+	priorities.reserve(info.get_queue_family_info_list().size());
 
-	for (const auto& family : info.queue_family_info_list) {
+	for (const auto& family : info.get_queue_family_info_list()) {
 		auto& priority_list = priorities.emplace_back();
 
 		for (const auto& queue : family.queues) {
@@ -144,15 +205,15 @@ auto create_device(const logical_device_info& info) -> vk::raii::Device {
 			vk::DeviceCreateFlags{},
 			queue_create_info_list,
 			nullptr,
-			info.extensions,
-			&info.features
+			info.get_extensions(),
+			&info.get_features()
 		},
 		vk::PhysicalDeviceDynamicRenderingFeaturesKHR{
 			VK_TRUE
 		}
 	};
 
-	return vk::raii::Device{*info.physical_device, device_create_info.get<vk::DeviceCreateInfo>()};
+	return vk::raii::Device{*info.get_physical_device(), device_create_info.get<vk::DeviceCreateInfo>()};
 }
 
 
@@ -168,7 +229,7 @@ public:
 		// E.g. If a queue is specified which suports only Compute, then map that as the first
 		// entry for the Compute flag. This ensures the best match for the requested queue type is
 		// the first entry in the list.
-		for (const auto& family : device_info.queue_family_info_list) {
+		for (const auto& family : device_info.get_queue_family_info_list()) {
 			const auto flags = family.flags;
 			const auto flag_mask = static_cast<vk::QueueFlags::MaskType>(flags);
 
@@ -182,7 +243,7 @@ public:
 		// If only a Graphics|Compute|Transfer queue was requested, and later the user asks for a
 		// Graphics|Transfer queue, then this pass will ensure that this queue was mapped to the
 		// Graphics|Transfer flag as well.
-		for (const auto& family : device_info.queue_family_info_list) {
+		for (const auto& family : device_info.get_queue_family_info_list()) {
 			const auto flags = family.flags;
 			const auto separated_flags = util::separate_flags(flags);
 			assert(!separated_flags.empty());
@@ -212,7 +273,7 @@ public:
 
 	[[nodiscard]]
 	auto get_vk_physical_device() const -> const std::shared_ptr<vk::raii::PhysicalDevice>& {
-		return device_info.physical_device;
+		return device_info.get_physical_device();
 	}
 
 	[[nodiscard]]
@@ -233,9 +294,9 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queue(const vk::SurfaceKHR& surface) const -> std::shared_ptr<queue> {
+	auto get_present_queue(const window& win) const -> std::shared_ptr<queue> {
 		for (auto& q : queues) {
-			if (device_info.physical_device->getSurfaceSupportKHR(q.family_index, surface)) {
+			if (get_vk_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_surface())) {
 				return std::shared_ptr<queue>{shared_from_this(), &q};
 			}
 		}
@@ -243,11 +304,11 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_present_queues(const vk::SurfaceKHR& surface) const -> std::vector<std::shared_ptr<queue>> {
+	auto get_present_queues(const window& win) const -> std::vector<std::shared_ptr<queue>> {
 		auto results = std::vector<std::shared_ptr<queue>>{};
 
 		for (auto& q : queues) {
-			if (device_info.physical_device->getSurfaceSupportKHR(q.family_index, surface)) {
+			if (get_vk_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_surface())) {
 				results.emplace_back(shared_from_this(), &q);
 			}
 		}
@@ -257,7 +318,7 @@ public:
 
 	[[nodiscard]]
 	auto create_device_memory(const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags property_flags) const -> vk::raii::DeviceMemory {
-		const auto memory_properties    = device_info.physical_device->getMemoryProperties();
+		const auto memory_properties    = get_vk_physical_device()->getMemoryProperties();
 		const auto memory_type_index    = util::find_memory_type(memory_properties, memory_requirements.memoryTypeBits, property_flags);
 		const auto memory_allocate_info = vk::MemoryAllocateInfo{memory_requirements.size, memory_type_index};
 

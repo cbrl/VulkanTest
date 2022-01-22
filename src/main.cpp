@@ -70,9 +70,7 @@ auto main(int argc, char** argv) -> int {
 
 	// Logical Device
 	//--------------------------------------------------------------------------------
-	auto device_info = vkw::logical_device_info{
-		.physical_device = physical_device
-	};
+	auto device_info = vkw::logical_device_info{physical_device};
 
 	// Add a graphics queue
 	const auto graphics_queue_family = device_info.add_queues(vk::QueueFlagBits::eGraphics, 1.0f);
@@ -88,18 +86,17 @@ auto main(int argc, char** argv) -> int {
 	}
 	else {
 		// Check if any existing queues support present. If so, pick the first one that does.
-		const auto present_queue_it = std::ranges::find_if(device_info.queue_family_info_list, [&](const auto& qfi) {
-			return physical_device->getSurfaceSupportKHR(qfi.family_idx, *window->get_surface()) && !qfi.queues.empty();
-		});
+		const auto present_queues = device_info.get_present_queue_families(*window);
 
-		if (present_queue_it != device_info.queue_family_info_list.end()) {
-			present_queue_family = present_queue_it->family_idx;
-		}
-		else {
+		if (present_queues.empty()) {
 			present_queue_family = vkw::util::find_present_queue_index(**physical_device, *window->get_surface());
+
 			if (present_queue_family.has_value()) {
 				device_info.add_queues(*present_queue_family, 1.0f);
 			}
+		}
+		else {
+			present_queue_family = present_queues.front();
 		}
 	}
 
@@ -119,7 +116,7 @@ auto main(int argc, char** argv) -> int {
 	// Find an SRGB surface format
 	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device->getSurfaceFormatsKHR(*window->get_surface()));
 	if (not srgb_format.has_value()) {
-		throw std::runtime_error("No SRGB surface format");
+		throw std::runtime_error{"No SRGB surface format"};
 	}
 
 	// Check if the graphics and present queues are the same
@@ -397,7 +394,7 @@ auto main(int argc, char** argv) -> int {
 	// Present
 	//--------------------------------------------------------------------------------
 	const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain->get_vk_swapchain(), image_index};
-	const auto present_result = logical_device->get_present_queue(*window->get_surface())->presentKHR(present_info);
+	const auto present_result = logical_device->get_present_queue(*window)->presentKHR(present_info);
 
 	switch (present_result) {
 		case vk::Result::eSuccess: break;
