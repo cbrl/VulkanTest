@@ -88,10 +88,10 @@ public:
 
 		for (const auto& attachment : attachments) {
 			color_attachments[frame].push_back(vk::RenderingAttachmentInfoKHR{
-				*attachment.img_view->get_vk_image_view(),
+				*attachment.img_view->get_vk_handle(),
 				attachment.image_layout,
 				attachment.resolve_mode,
-				attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_image_view() : vk::ImageView{},
+				attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_handle() : vk::ImageView{},
 				attachment.resolve_image_layout,
 				attachment.load_op,
 				attachment.store_op,
@@ -150,10 +150,10 @@ public:
 
 		depth_stencil_attachments.resize(new_size);
 		depth_stencil_attachments[frame] = vk::RenderingAttachmentInfoKHR{
-			*attachment.img_view->get_vk_image_view(),
+			*attachment.img_view->get_vk_handle(),
 			attachment.image_layout,
 			attachment.resolve_mode,
-			attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_image_view() : vk::ImageView{},
+			attachment.resolve_img_view ? *attachment.resolve_img_view->get_vk_handle() : vk::ImageView{},
 			attachment.resolve_image_layout,
 			attachment.load_op,
 			attachment.store_op,
@@ -298,7 +298,7 @@ private:
 			for (auto i : std::views::iota(size_t{0}, color_image_views.at(frame).size())) {
 				color_begin_barriers[frame].push_back(
 					std::get<2>(vkw::util::create_layout_barrier(
-						*color_image_views[frame][i]->get_image()->get_vk_image(),
+						*color_image_views[frame][i]->get_image()->get_vk_handle(),
 						vk::ImageAspectFlagBits::eColor,
 						color_initial_layouts[frame][i],
 						color_attachments[frame][i].imageLayout
@@ -314,7 +314,7 @@ private:
 			for (auto i : std::views::iota(size_t{0}, color_image_views.at(frame).size())) {
 				color_end_barriers[frame].push_back(
 					std::get<2>(vkw::util::create_layout_barrier(
-						*color_image_views[frame][i]->get_image()->get_vk_image(),
+						*color_image_views[frame][i]->get_image()->get_vk_handle(),
 						vk::ImageAspectFlagBits::eColor,
 						color_attachments[frame][i].imageLayout,
 						color_final_layouts[frame][i]
@@ -333,7 +333,7 @@ private:
 
 			depth_stencil_begin_barriers.push_back(
 				std::get<2>(vkw::util::create_layout_barrier(
-					*depth_stencil_image_views[frame]->get_image()->get_vk_image(),
+					*depth_stencil_image_views[frame]->get_image()->get_vk_handle(),
 					aspect_flags,
 					depth_initial_layouts[frame],
 					depth_stencil_attachments[frame].imageLayout
@@ -349,7 +349,7 @@ private:
 
 			depth_stencil_end_barriers.push_back(
 				std::get<2>(vkw::util::create_layout_barrier(
-					*depth_stencil_image_views[frame]->get_image()->get_vk_image(),
+					*depth_stencil_image_views[frame]->get_image()->get_vk_handle(),
 					aspect_flags,
 					depth_stencil_attachments[frame].imageLayout,
 					depth_final_layouts[frame]

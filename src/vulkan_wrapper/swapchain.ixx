@@ -108,19 +108,14 @@ public:
 	}
 
 	auto resize(vk::Extent2D new_size) -> void {
-		device->get_vk_device().waitIdle();
+		device->get_vk_handle().waitIdle();
 
 		size = new_size;
 		create_impl();
 	}
 
 	[[nodiscard]]
-	auto get_vk_swapchain() -> vk::raii::SwapchainKHR& {
-		return *vk_swapchain;
-	}
-
-	[[nodiscard]]
-	auto get_vk_swapchain() const -> const vk::raii::SwapchainKHR& {
+	auto get_vk_handle() const -> const vk::raii::SwapchainKHR& {
 		return *vk_swapchain;
 	}
 
@@ -170,10 +165,10 @@ private:
 	auto create_impl() -> void {
 		invalidate_images();
 
-		const auto& vk_physical_device = device->get_vk_physical_device();
+		const auto& vk_physical_device = device->get_physical_device();
 
-		const auto surface_capabilities  = vk_physical_device->getSurfaceCapabilitiesKHR(*wind->get_surface());
-		const auto surface_present_modes = vk_physical_device->getSurfacePresentModesKHR(*wind->get_surface());
+		const auto surface_capabilities  = vk_physical_device->getSurfaceCapabilitiesKHR(*wind->get_vk_handle());
+		const auto surface_present_modes = vk_physical_device->getSurfacePresentModesKHR(*wind->get_vk_handle());
 
 		const auto present_mode     = vsync ? vk::PresentModeKHR::eFifo : select_present_mode(surface_present_modes);
 		const auto pre_transform    = select_transform(surface_capabilities);
@@ -186,7 +181,7 @@ private:
 		// imageSharingMode as vk::SharingMode::eConcurrent
 		const auto swap_chain_create_info = vk::SwapchainCreateInfoKHR{
 			vk::SwapchainCreateFlagsKHR{},
-			*wind->get_surface(),
+			*wind->get_vk_handle(),
 			surface_capabilities.minImageCount,
 			format.format,
 			format.colorSpace,
@@ -202,7 +197,7 @@ private:
 			vk_swapchain ? **vk_swapchain : vk::SwapchainKHR{}
 		};
 
-		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device->get_vk_device(), swap_chain_create_info);
+		vk_swapchain = std::make_unique<vk::raii::SwapchainKHR>(device->get_vk_handle(), swap_chain_create_info);
 
 		const auto swap_images = vk_swapchain->getImages();
 		image_count = swap_images.size();
@@ -240,7 +235,7 @@ private:
 	auto invalidate_images() noexcept -> void {
 		for (auto& img : images) {
 			// Hacky way to prevent destruction of the swapchain-owned images
-			const_cast<vk::raii::Image&>(img->get_vk_image()) = vk::raii::Image{nullptr};
+			const_cast<vk::raii::Image&>(img->get_vk_handle()) = vk::raii::Image{nullptr};
 		}
 		image_views.clear();
 		images.clear();

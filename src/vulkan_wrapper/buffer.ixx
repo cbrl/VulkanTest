@@ -51,7 +51,7 @@ public:
 
 		assert(size_bytes > 0);
 
-		vk_buffer = vk::raii::Buffer{device->get_vk_device(), vk::BufferCreateInfo{vk::BufferCreateFlags{}, size_bytes, usage}};
+		vk_buffer = vk::raii::Buffer{device->get_vk_handle(), vk::BufferCreateInfo{vk::BufferCreateFlags{}, size_bytes, usage}};
 		device_memory = device->create_device_memory(vk_buffer.getMemoryRequirements(), property_flags);
 
 		vk_buffer.bindMemory(*device_memory, 0);
@@ -68,7 +68,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_buffer() const noexcept -> const vk::raii::Buffer& {
+	auto get_vk_handle() const noexcept -> const vk::raii::Buffer& {
 		return vk_buffer;
 	}
 
@@ -97,7 +97,7 @@ public:
 		vk::DeviceSize               offset = 0
 	) -> void {
 		auto command_buffers = vk::raii::CommandBuffers{
-			device->get_vk_device(),
+			device->get_vk_handle(),
 			vk::CommandBufferAllocateInfo{*command_pool, vk::CommandBufferLevel::ePrimary, 1}
 		};
 
@@ -121,11 +121,11 @@ public:
         command_buffer.copyBuffer(*staging_buffer.vk_buffer, *this->vk_buffer, vk::BufferCopy{0, offset, data.size_bytes()});
         command_buffer.end();
 
-		const auto fence = vk::raii::Fence{device->get_vk_device(), vk::FenceCreateInfo{}};
+		const auto fence = vk::raii::Fence{device->get_vk_handle(), vk::FenceCreateInfo{}};
 
         const auto submit_info = vk::SubmitInfo{nullptr, nullptr, *command_buffer};
         queue.submit(submit_info, *fence);
-		const auto result = device->get_vk_device().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+		const auto result = device->get_vk_handle().waitForFences(*fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 		if (result != vk::Result::eSuccess) {
 			// TODO: report error

@@ -87,11 +87,11 @@ public:
 		bindings(layout_bindings.begin(), layout_bindings.end()) {
 
 		const auto create_info = vk::DescriptorSetLayoutCreateInfo{flags, layout_bindings};
-		layout = vk::raii::DescriptorSetLayout{device->get_vk_device(), create_info};
+		layout = vk::raii::DescriptorSetLayout{device->get_vk_handle(), create_info};
 	}
 
 	[[nodiscard]]
-	auto get_vk_layout() const noexcept -> const vk::raii::DescriptorSetLayout& {
+	auto get_vk_handle() const noexcept -> const vk::raii::DescriptorSetLayout& {
 		return layout;
 	}
 
@@ -137,7 +137,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_descriptor_set() const noexcept -> const vk::raii::DescriptorSet& {
+	auto get_vk_handle() const noexcept -> const vk::raii::DescriptorSet& {
 		return handle;
 	}
 
@@ -148,7 +148,7 @@ public:
 		for (auto i : std::views::iota(size_t{0}, image_set.image_views.size())) {
 			texture_infos.push_back(vk::DescriptorImageInfo{
 				vk::Sampler{},
-				*image_set.image_views[i].get().get_vk_image_view(),
+				*image_set.image_views[i].get().get_vk_handle(),
 				image_set.layouts[i]
 			});
 		}
@@ -161,13 +161,13 @@ public:
 			texture_infos,
 		};
 
-		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_handle().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
 	auto update(const write_sampler_set& sampler_set) -> void {
 		const auto sampler_infos = ranges::to<std::vector>(std::views::transform(sampler_set.samplers, [](const sampler& samp) {
 			return vk::DescriptorImageInfo{
-				*samp.get_vk_sampler(),
+				*samp.get_vk_handle(),
 				vk::ImageView{},
 				vk::ImageLayout::eUndefined
 			};
@@ -181,12 +181,12 @@ public:
 			sampler_infos,
 		};
 
-		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_handle().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
 	auto update(const write_buffer_set& buffer_set) -> void {
 		const auto buffer_infos = ranges::to<std::vector>(std::views::transform(buffer_set.buffers, [](const buffer<>& buf) {
-			return vk::DescriptorBufferInfo{*buf.get_vk_buffer(), 0, VK_WHOLE_SIZE};
+			return vk::DescriptorBufferInfo{*buf.get_vk_handle(), 0, VK_WHOLE_SIZE};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
@@ -198,7 +198,7 @@ public:
 			buffer_infos
 		};
 
-		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_handle().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
 	auto update(const write_texel_buffer_set& buffer_set) -> void {
@@ -214,7 +214,7 @@ public:
 			view_handles
 		};
 	
-		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
+		device->get_vk_handle().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
 	auto update(const std::vector<write_set_variant>& buffer_data) -> void {
@@ -237,7 +237,7 @@ public:
 				for (const image_view& view: image_set->image_views) {
 					info_vec.push_back(vk::DescriptorImageInfo{
 						vk::Sampler{},
-						*view.get_vk_image_view(),
+						*view.get_vk_handle(),
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}
@@ -251,7 +251,7 @@ public:
 				auto& info_vec = sampler_infos.emplace_back();
 				for (const sampler& samp : sampler_set->samplers) {
 					info_vec.push_back(vk::DescriptorImageInfo{
-						*samp.get_vk_sampler(),
+						*samp.get_vk_handle(),
 						vk::ImageView{},
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
@@ -265,7 +265,7 @@ public:
 
 				auto& info_vec = buffer_infos.emplace_back();
 				for (const buffer<void>& buffer : buffer_set->buffers) {
-					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get_vk_buffer(), 0, VK_WHOLE_SIZE});
+					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get_vk_handle(), 0, VK_WHOLE_SIZE});
 				}
 
 				set_info.setBufferInfo(info_vec);
@@ -281,7 +281,7 @@ public:
 			}
 		}
 
-		device->get_vk_device().updateDescriptorSets(write_descriptor_sets, nullptr);
+		device->get_vk_handle().updateDescriptorSets(write_descriptor_sets, nullptr);
 	}
 
 private:

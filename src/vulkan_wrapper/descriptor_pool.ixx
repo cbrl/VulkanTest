@@ -53,7 +53,7 @@ public:
 		pool(nullptr) {
 
 		const auto pool_create_info = vk::DescriptorPoolCreateInfo{flags, max_sets, pool_sizes};
-		pool = vk::raii::DescriptorPool{device->get_vk_device(), pool_create_info};
+		pool = vk::raii::DescriptorPool{device->get_vk_handle(), pool_create_info};
 	}
 	
 	descriptor_pool(
@@ -70,7 +70,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_pool() const noexcept -> const vk::raii::DescriptorPool& {
+	auto get_vk_handle() const noexcept -> const vk::raii::DescriptorPool& {
 		return pool;
 	}
 
@@ -86,17 +86,17 @@ public:
 
 	[[nodiscard]]
 	auto allocate(std::shared_ptr<descriptor_set_layout> layout) -> std::shared_ptr<descriptor_set> {
-		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, *layout->get_vk_layout()};
-		auto descriptor = std::move(vk::raii::DescriptorSets{device->get_vk_device(), allocate_info}.front());
+		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, *layout->get_vk_handle()};
+		auto descriptor = std::move(vk::raii::DescriptorSets{device->get_vk_handle(), allocate_info}.front());
 		return descriptor_set::create(device, shared_from_this(), std::move(layout), std::move(descriptor));
 	}
 
 	[[nodiscard]]
 	auto allocate(std::span<const std::shared_ptr<descriptor_set_layout>> layouts) -> std::vector<std::shared_ptr<descriptor_set>> {
-		const auto vk_layouts = vkw::ranges::to<std::vector>(layouts | std::views::transform([](const auto& layout) { return *layout->get_vk_layout(); }));
+		const auto vk_layouts = vkw::ranges::to<std::vector>(layouts | std::views::transform([](auto&& layout) { return *layout->get_vk_handle(); }));
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
-		auto sets = vk::raii::DescriptorSets{device->get_vk_device(), allocate_info};
+		auto sets = vk::raii::DescriptorSets{device->get_vk_handle(), allocate_info};
 		
 		auto result = std::vector<std::shared_ptr<descriptor_set>>{};
 		result.reserve(sets.size());

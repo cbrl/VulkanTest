@@ -31,7 +31,7 @@ export struct texture_info {
 
 [[nodiscard]]
 auto is_staging_required(const logical_device& device, vk::Format format) -> bool {
-	const auto format_properties = device.get_vk_physical_device()->getFormatProperties(format);
+	const auto format_properties = device.get_physical_device()->getFormatProperties(format);
 	return (format_properties.linearTilingFeatures & vk::FormatFeatureFlagBits::eSampledImage) != vk::FormatFeatureFlagBits::eSampledImage;
 }
 

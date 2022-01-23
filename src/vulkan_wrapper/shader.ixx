@@ -21,7 +21,7 @@ static auto create_shader_module(const logical_device& device, std::span<const u
 		data.data()
 	};
 
-	return vk::raii::ShaderModule{device.get_vk_device(), create_info};
+	return vk::raii::ShaderModule{device.get_vk_handle(), create_info};
 }
 
 export class shader_stage {
@@ -59,6 +59,11 @@ public:
 
 		specialization_info.setMapEntries(this->specialization_entries);
 		specialization_info.setData<uint32_t>(this->specialization_data);
+	}
+
+	[[nodiscard]]
+	auto get_vk_handle() const noexcept -> const vk::raii::ShaderModule& {
+		return shader_module;
 	}
 
 	[[nodiscard]]

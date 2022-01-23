@@ -27,7 +27,7 @@ static auto create_pools(const logical_device& device, uint32_t frame_count, uin
 			queue_family
 		};
 
-		result.emplace_back(device.get_vk_device(), create_info);
+		result.emplace_back(device.get_vk_handle(), create_info);
 	}
 
 	return result;
@@ -41,7 +41,7 @@ static auto create_buffers(const logical_device& device, std::span<const vk::rai
 	for (const auto& pool : command_pools) {
 		const auto allocate_info = vk::CommandBufferAllocateInfo{*pool, vk::CommandBufferLevel::ePrimary, 1};
 
-		auto buffers = vk::raii::CommandBuffers{device.get_vk_device(), allocate_info};
+		auto buffers = vk::raii::CommandBuffers{device.get_vk_handle(), allocate_info};
 		assert(not buffers.empty());
 
 		result.insert(result.end(), std::make_move_iterator(buffers.begin()), std::make_move_iterator(buffers.end()));
@@ -59,12 +59,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_buffers() const noexcept -> const std::vector<vk::raii::CommandBuffer>& {
+	auto get_vk_handles() const noexcept -> const std::vector<vk::raii::CommandBuffer>& {
 		return buffers;
 	}
 
 	[[nodiscard]]
-	auto get_buffer(uint32_t frame) const -> const vk::raii::CommandBuffer& {
+	auto get_vk_handle(uint32_t frame) const -> const vk::raii::CommandBuffer& {
 		return buffers.at(frame);
 	}
 
@@ -102,7 +102,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_pool(uint32_t frame) const -> const vk::raii::CommandPool& {
+	auto get_vk_handle(uint32_t frame) const -> const vk::raii::CommandPool& {
 		return pools.at(frame);
 	}
 
@@ -117,7 +117,7 @@ public:
 		result.reserve(commands.size());
 
 		for (const auto& cmd : commands) {
-			result.push_back(cmd.get_buffer(frame));
+			result.push_back(cmd.get_vk_handle(frame));
 		}
 
 		return result;
@@ -135,7 +135,7 @@ public:
 		pools.at(frame).reset(vk::CommandPoolResetFlags{});
 
 		for (auto& cmd : commands) {
-			auto& buffer = cmd.get_buffer(frame);
+			auto& buffer = cmd.get_vk_handle(frame);
 
 			const auto begin_info = vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 			buffer.begin(begin_info);

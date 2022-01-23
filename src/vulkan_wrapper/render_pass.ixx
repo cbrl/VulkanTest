@@ -43,7 +43,7 @@ auto create_render_pass(const logical_device& device, const render_pass_info& in
 		info.subpass_dependencies
 	};
 
-	return vk::raii::RenderPass{device.get_vk_device(), create_info};
+	return vk::raii::RenderPass{device.get_vk_handle(), create_info};
 }
 
 [[nodiscard]]
@@ -52,7 +52,7 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 	framebuffers.reserve(info.target_attachments.size());
 
 	for (const auto& attachment : info.target_attachments) {
-		const auto view_handles = ranges::to<std::vector>(attachment | std::views::transform([](auto&& a) { return *a->get_vk_image_view(); }));
+		const auto view_handles = ranges::to<std::vector>(attachment | std::views::transform([](auto&& a) { return *a->get_vk_handle(); }));
 
 		const auto create_info = vk::FramebufferCreateInfo{
 			vk::FramebufferCreateFlags{},
@@ -63,7 +63,7 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 			1
 		};
 
-		framebuffers.emplace_back(device.get_vk_device(), create_info);
+		framebuffers.emplace_back(device.get_vk_handle(), create_info);
 	}
 
 	return framebuffers;
@@ -85,12 +85,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_render_pass() const noexcept -> const vk::raii::RenderPass& {
+	auto get_vk_handle() const noexcept -> const vk::raii::RenderPass& {
 		return pass;
 	}
 
 	[[nodiscard]]
-	auto get_vk_framebuffers() const noexcept -> const std::vector<vk::raii::Framebuffer>& {
+	auto get_framebuffers() const noexcept -> const std::vector<vk::raii::Framebuffer>& {
 		return framebuffers;
 	}
 

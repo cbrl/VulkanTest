@@ -21,8 +21,8 @@ struct sampler_info {
 
 [[nodiscard]]
 auto build_sampler_create_info(const vkw::logical_device& device, const vkw::sampler_info& info) -> vk::SamplerCreateInfo {
-	const auto features   = device.get_vk_physical_device()->getFeatures();
-	const auto properties = device.get_vk_physical_device()->getProperties();
+	const auto features   = device.get_physical_device()->getFeatures();
+	const auto properties = device.get_physical_device()->getProperties();
 
 	return vk::SamplerCreateInfo{
 		vk::SamplerCreateFlags{},
@@ -57,7 +57,7 @@ public:
 	sampler(std::shared_ptr<logical_device> logic_device, const sampler_info& sample_info) :
 		device(std::move(logic_device)),
 		info(build_sampler_create_info(*device, sample_info)),
-		handle(device->get_vk_device(), info) {
+		handle(device->get_vk_handle(), info) {
 	}
 
 	[[nodiscard]]
@@ -66,7 +66,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_sampler() const noexcept -> const vk::raii::Sampler& {
+	auto get_vk_handle() const noexcept -> const vk::raii::Sampler& {
 		return handle;
 	}
 

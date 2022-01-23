@@ -140,7 +140,7 @@ public:
 		auto result = std::vector<uint32_t>{};
 
 		for (const auto& family_info : queue_family_info_list) {
-			if (physical_device->getSurfaceSupportKHR(family_info.family_idx, *win.get_surface())) {
+			if (physical_device->getSurfaceSupportKHR(family_info.family_idx, *win.get_vk_handle())) {
 				result.push_back(family_info.family_idx);
 			}
 		}
@@ -272,12 +272,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_physical_device() const -> const std::shared_ptr<vk::raii::PhysicalDevice>& {
+	auto get_physical_device() const -> const std::shared_ptr<vk::raii::PhysicalDevice>& {
 		return device_info.get_physical_device();
 	}
 
 	[[nodiscard]]
-	auto get_vk_device() const -> const vk::raii::Device& {
+	auto get_vk_handle() const -> const vk::raii::Device& {
 		return device;
 	}
 
@@ -296,7 +296,7 @@ public:
 	[[nodiscard]]
 	auto get_present_queue(const window& win) const -> std::shared_ptr<queue> {
 		for (auto& q : queues) {
-			if (get_vk_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_surface())) {
+			if (get_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_vk_handle())) {
 				return std::shared_ptr<queue>{shared_from_this(), &q};
 			}
 		}
@@ -308,7 +308,7 @@ public:
 		auto results = std::vector<std::shared_ptr<queue>>{};
 
 		for (auto& q : queues) {
-			if (get_vk_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_surface())) {
+			if (get_physical_device()->getSurfaceSupportKHR(q.family_index, *win.get_vk_handle())) {
 				results.emplace_back(shared_from_this(), &q);
 			}
 		}
@@ -318,11 +318,11 @@ public:
 
 	[[nodiscard]]
 	auto create_device_memory(const vk::MemoryRequirements& memory_requirements, vk::MemoryPropertyFlags property_flags) const -> vk::raii::DeviceMemory {
-		const auto memory_properties    = get_vk_physical_device()->getMemoryProperties();
+		const auto memory_properties    = get_physical_device()->getMemoryProperties();
 		const auto memory_type_index    = util::find_memory_type(memory_properties, memory_requirements.memoryTypeBits, property_flags);
 		const auto memory_allocate_info = vk::MemoryAllocateInfo{memory_requirements.size, memory_type_index};
 
-		return vk::raii::DeviceMemory{get_vk_device(), memory_allocate_info};
+		return vk::raii::DeviceMemory{get_vk_handle(), memory_allocate_info};
 	}
 
 private:

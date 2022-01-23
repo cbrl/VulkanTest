@@ -57,7 +57,7 @@ export class image {
 	image(std::shared_ptr<logical_device> logic_device, vk::Image img, const image_info& info) :
 		device(std::move(logic_device)),
 		info(info),
-		vk_image(device->get_vk_device(), img),
+		vk_image(device->get_vk_handle(), img),
 		device_memory(nullptr) {
 	}
 
@@ -70,7 +70,7 @@ public:
 	image(std::shared_ptr<logical_device> logic_device, const image_info& info) :
 		device(std::move(logic_device)),
 		info(info),
-		vk_image(device->get_vk_device(), info.create_info),
+		vk_image(device->get_vk_handle(), info.create_info),
 		device_memory(device->create_device_memory(vk_image.getMemoryRequirements(), info.memory_properties)) {
 
 		vk_image.bindMemory(*device_memory, 0);
@@ -87,7 +87,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_image() const noexcept -> const vk::raii::Image& {
+	auto get_vk_handle() const noexcept -> const vk::raii::Image& {
 		return vk_image;
 	}
 
@@ -119,10 +119,10 @@ public:
 		view(nullptr) {
 
 		view = vk::raii::ImageView{
-			img->get_device()->get_vk_device(),
+			img->get_device()->get_vk_handle(),
 			vk::ImageViewCreateInfo{
 				info.flags,
-				*img->get_vk_image(),
+				*img->get_vk_handle(),
 				info.view_type,
 				info.format,
 				info.components,
@@ -137,7 +137,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_image_view() const noexcept -> const vk::raii::ImageView& {
+	auto get_vk_handle() const noexcept -> const vk::raii::ImageView& {
 		return view;
 	}
 
@@ -254,7 +254,7 @@ auto create_layout_barrier(
 }
 
 auto create_layout_barrier(const image& img, vk::ImageLayout old_layout, vk::ImageLayout new_layout) {
-	return create_layout_barrier(*img.get_vk_image(), format_to_aspect(img.get_info().create_info.format), old_layout, new_layout);
+	return create_layout_barrier(*img.get_vk_handle(), format_to_aspect(img.get_info().create_info.format), old_layout, new_layout);
 }
 
 

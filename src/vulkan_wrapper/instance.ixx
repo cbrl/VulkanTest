@@ -223,12 +223,7 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_instance() -> vk::raii::Instance& {
-		return vk_instance;
-	}
-
-	[[nodiscard]]
-	auto get_vk_instance() const -> const vk::raii::Instance& {
+	auto get_vk_handle() const noexcept -> const vk::raii::Instance& {
 		return vk_instance;
 	}
 

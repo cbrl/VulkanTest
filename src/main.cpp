@@ -83,7 +83,7 @@ auto main(int argc, char** argv) -> int {
 	auto present_queue_family = std::optional<uint32_t>{};
 
 	// Check if the graphics queue supports present	
-	if (physical_device->getSurfaceSupportKHR(*graphics_queue_family, *window->get_surface())) {
+	if (physical_device->getSurfaceSupportKHR(*graphics_queue_family, *window->get_vk_handle())) {
 		present_queue_family = graphics_queue_family;
 	}
 	else {
@@ -91,7 +91,7 @@ auto main(int argc, char** argv) -> int {
 		const auto present_queues = device_info.get_present_queue_families(*window);
 
 		if (present_queues.empty()) {
-			present_queue_family = vkw::util::find_present_queue_index(**physical_device, *window->get_surface());
+			present_queue_family = vkw::util::find_present_queue_index(**physical_device, *window->get_vk_handle());
 
 			if (present_queue_family.has_value()) {
 				device_info.add_queues(*present_queue_family, 1.0f);
@@ -116,7 +116,7 @@ auto main(int argc, char** argv) -> int {
 	auto swapchain = vkw::swapchain::create(logical_device, window);
 
 	// Find an SRGB surface format
-	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device->getSurfaceFormatsKHR(*window->get_surface()));
+	const auto srgb_format = vkw::util::select_srgb_surface_format(physical_device->getSurfaceFormatsKHR(*window->get_vk_handle()));
 	if (not srgb_format.has_value()) {
 		throw std::runtime_error{"No SRGB surface format"};
 	}
@@ -143,7 +143,7 @@ auto main(int argc, char** argv) -> int {
 	for (auto _ : std::views::iota(size_t{0}, swapchain->get_image_count())) {
 		depth_buffers.push_back(vkw::util::create_depth_buffer(
 			logical_device,
-			vkw::util::select_depth_format(*logical_device->get_vk_physical_device()).value(),
+			vkw::util::select_depth_format(*logical_device->get_physical_device()).value(),
 			window->get_window_size()
 		));
 	}
@@ -275,7 +275,7 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 
 	// Create a pipeline cache
-	auto cache = vk::raii::PipelineCache{logical_device->get_vk_device(), vk::PipelineCacheCreateInfo{}};
+	auto cache = vk::raii::PipelineCache{logical_device->get_vk_handle(), vk::PipelineCacheCreateInfo{}};
 
 	// Setup the pipeline info
 	const auto pipeline_layout = vkw::pipeline_layout::create(
@@ -364,7 +364,7 @@ auto main(int argc, char** argv) -> int {
 			{}
 		);
 
-		buffer.bindVertexBuffers(0, *vertex_buffer->get_vk_buffer(), vk::DeviceSize{0});
+		buffer.bindVertexBuffers(0, *vertex_buffer->get_vk_handle(), vk::DeviceSize{0});
 		buffer.draw(vertex_buffer->get_size(), 1, 0, 0);
 
 		//buffer.endRenderPass();
@@ -374,8 +374,8 @@ auto main(int argc, char** argv) -> int {
 
 	// Run Commands
 	//--------------------------------------------------------------------------------
-	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device->get_vk_device(), vk::SemaphoreCreateInfo{}};
-	const auto [acq_result, image_index] = swapchain->get_vk_swapchain().acquireNextImage(std::numeric_limits<uint64_t>::max(), *image_acquired_semaphore);
+	auto image_acquired_semaphore = vk::raii::Semaphore{logical_device->get_vk_handle(), vk::SemaphoreCreateInfo{}};
+	const auto [acq_result, image_index] = swapchain->get_vk_handle().acquireNextImage(std::numeric_limits<uint64_t>::max(), *image_acquired_semaphore);
 
 	image_num = image_index;
 
@@ -384,18 +384,18 @@ auto main(int argc, char** argv) -> int {
 
 	// Submit and wait
 	//--------------------------------------------------------------------------------
-	const auto draw_fence  = vk::raii::Fence{logical_device->get_vk_device(), vk::FenceCreateInfo{}};
+	const auto draw_fence  = vk::raii::Fence{logical_device->get_vk_handle(), vk::FenceCreateInfo{}};
 	const auto buffers     = vkw::ranges::to<std::vector>(batch->get_command_buffers(0) | vkw::util::as_handles());
 	const auto stage_flags = vk::PipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
 	const auto submit_info = vk::SubmitInfo{*image_acquired_semaphore, stage_flags, buffers};
 	logical_device->get_queue(vk::QueueFlagBits::eGraphics, 0)->submit(submit_info, *draw_fence);
 
-	logical_device->get_vk_device().waitForFences(*draw_fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+	logical_device->get_vk_handle().waitForFences(*draw_fence, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
 
 	// Present
 	//--------------------------------------------------------------------------------
-	const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain->get_vk_swapchain(), image_index};
+	const auto present_info = vk::PresentInfoKHR{nullptr, *swapchain->get_vk_handle(), image_index};
 	const auto present_result = logical_device->get_present_queue(*window)->presentKHR(present_info);
 
 	switch (present_result) {
@@ -407,7 +407,7 @@ auto main(int argc, char** argv) -> int {
 		default: assert(false);
 	}
 
-	logical_device->get_vk_device().waitIdle();
+	logical_device->get_vk_handle().waitIdle();
 
 
 	// Wait for exit event

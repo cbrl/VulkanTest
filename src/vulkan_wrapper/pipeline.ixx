@@ -180,14 +180,14 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 			&info.depth_stencil_state,
 			&info.color_blend_state,
 			&info.dynamic_state,
-			*info.layout->get_vk_layout(),
-			*pass_info->pass->get_vk_render_pass(),
+			*info.layout->get_vk_handle(),
+			*pass_info->pass->get_vk_handle(),
 			pass_info->subpass,
 			vk::Pipeline{},
 			-1
 		};
 
-		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info};
+		return vk::raii::Pipeline{device.get_vk_handle(), cache, pipeline_create_info};
 	}
 	else if (const auto* pass = std::get_if<std::shared_ptr<render_pass_single>>(&info.pass_details)) {
 		const auto color_formats = (*pass)->get_color_formats();
@@ -205,7 +205,7 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 				&info.depth_stencil_state,
 				&info.color_blend_state,
 				&info.dynamic_state,
-				*info.layout->get_vk_layout(),
+				*info.layout->get_vk_handle(),
 				vk::RenderPass{},
 				0,
 				vk::Pipeline{},
@@ -219,7 +219,7 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 			}
 		};
 
-		return vk::raii::Pipeline{device.get_vk_device(), cache, pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()};
+		return vk::raii::Pipeline{device.get_vk_handle(), cache, pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()};
 	}
 	else {
 		throw std::runtime_error{"Invalid state for graphics_pipeline_info::pass_details"};
@@ -251,12 +251,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_vk_pipeline() const noexcept -> const vk::raii::Pipeline& {
+	auto get_vk_handle() const noexcept -> const vk::raii::Pipeline& {
 		return vk_pipeline;
 	}
 
 	auto bind(const vk::raii::CommandBuffer& cmd_buffer) -> void {
-		cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *get_vk_pipeline());
+		cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *get_vk_handle());
 	}
 
 	auto bind_descriptor_sets(

@@ -51,7 +51,7 @@ public:
 	virtual auto present() -> void = 0;
 
 	[[nodiscard]]
-	virtual auto get_surface() const noexcept -> const vk::raii::SurfaceKHR& = 0;
+	virtual auto get_vk_handle() const noexcept -> const vk::raii::SurfaceKHR& = 0;
 
 	[[nodiscard]]
 	virtual auto get_title() const -> std::string = 0;
@@ -150,7 +150,7 @@ public:
 	) :
 		instance_ptr(ins),
 		handle(create_handle(title, size, int_hints, string_hints, monitor)),
-		surface(create_surface(ins->get_vk_instance(), handle)) {
+		surface(create_surface(ins->get_vk_handle(), handle)) {
 		glfwMakeContextCurrent(handle);
 
 		glfwSetWindowUserPointer(handle, this);
@@ -177,12 +177,12 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_handle() const noexcept -> GLFWwindow* {
+	auto get_glfw_handle() const noexcept -> GLFWwindow* {
 		return handle;
 	}
 
 	[[nodiscard]]
-	virtual auto get_surface() const noexcept -> const vk::raii::SurfaceKHR& override {
+	virtual auto get_vk_handle() const noexcept -> const vk::raii::SurfaceKHR& override {
 		return surface;
 	}
 
