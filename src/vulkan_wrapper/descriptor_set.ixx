@@ -18,23 +18,37 @@ export module vkw.descriptor_set;
 import vkw.buffer;
 import vkw.logical_device;
 import vkw.sampler;
-import vkw.texture;
+import vkw.image;
 import vkw.util;
-
-
-template<typename T>
-struct write_descriptor_set {
-	uint32_t binding;
-	std::vector<std::reference_wrapper<const T>> data;
-};
 
 
 export namespace vkw {
 
-using write_image_set        = write_descriptor_set<texture>;
-using write_sampler_set      = write_descriptor_set<sampler>;
-using write_buffer_set       = write_descriptor_set<buffer<void>>;
-using write_texel_buffer_set = write_descriptor_set<vk::raii::BufferView>;
+struct write_image_set {
+	auto add_image(const image_view& view, vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal) -> void {
+		image_views.push_back(std::ref(view));
+		layouts.push_back(layout);
+	}
+
+	uint32_t binding;
+	std::vector<std::reference_wrapper<const image_view>> image_views;
+	std::vector<vk::ImageLayout> layouts;
+};
+
+struct write_sampler_set {
+	uint32_t binding;
+	std::vector<std::reference_wrapper<const sampler>> samplers;
+};
+
+struct write_buffer_set {
+	uint32_t binding;
+	std::vector<std::reference_wrapper<const buffer<void>>> buffers;
+};
+
+struct write_texel_buffer_set {
+	uint32_t binding;
+	std::vector<std::reference_wrapper<const vk::raii::BufferView>> buffer_views;
+};
 
 
 class descriptor_set_layout {
@@ -127,56 +141,59 @@ public:
 		return handle;
 	}
 
-	auto update(const write_image_set& images) -> void {
-		const auto texture_infos = vkw::util::to_vector(std::views::transform(images.data, [](const texture& tex) {
-			return vk::DescriptorImageInfo{
+	auto update(const write_image_set& image_set) -> void {
+		auto texture_infos = std::vector<vk::DescriptorImageInfo>{};
+		texture_infos.reserve(image_set.image_views.size());
+
+		for (auto i : std::views::iota(size_t{0}, image_set.image_views.size())) {
+			texture_infos.push_back(vk::DescriptorImageInfo{
 				vk::Sampler{},
-				*tex.get_image_view()->get_vk_image_view(),
-				vk::ImageLayout::eShaderReadOnlyOptimal
-			};
-		}));
+				*image_set.image_views[i].get().get_vk_image_view(),
+				image_set.layouts[i]
+			});
+		}
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			images.binding,
+			image_set.binding,
 			0,
-			get_binding(images.binding).descriptorType,
+			get_binding(image_set.binding).descriptorType,
 			texture_infos,
 		};
 
 		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const write_sampler_set& samplers) -> void {
-		const auto sampler_infos = vkw::util::to_vector(std::views::transform(samplers.data, [](const sampler& samp) {
+	auto update(const write_sampler_set& sampler_set) -> void {
+		const auto sampler_infos = vkw::util::to_vector(std::views::transform(sampler_set.samplers, [](const sampler& samp) {
 			return vk::DescriptorImageInfo{
 				*samp.get_vk_sampler(),
 				vk::ImageView{},
-				vk::ImageLayout::eShaderReadOnlyOptimal
+				vk::ImageLayout::eUndefined
 			};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			samplers.binding,
+			sampler_set.binding,
 			0,
-			get_binding(samplers.binding).descriptorType,
+			get_binding(sampler_set.binding).descriptorType,
 			sampler_infos,
 		};
 
 		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const write_buffer_set& buffers) -> void {
-		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffers.data, [](const buffer<>& buf) {
+	auto update(const write_buffer_set& buffer_set) -> void {
+		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffer_set.buffers, [](const buffer<>& buf) {
 			return vk::DescriptorBufferInfo{*buf.get_vk_buffer(), 0, VK_WHOLE_SIZE};
 		}));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			buffers.binding,
+			buffer_set.binding,
 			0,
-			get_binding(buffers.binding).descriptorType,
+			get_binding(buffer_set.binding).descriptorType,
 			nullptr,
 			buffer_infos
 		};
@@ -184,14 +201,14 @@ public:
 		device->get_vk_device().updateDescriptorSets(write_descriptor_set, nullptr);
 	}
 
-	auto update(const write_texel_buffer_set& buffers) -> void {
-		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffers.data));
+	auto update(const write_texel_buffer_set& buffer_set) -> void {
+		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffer_set.buffer_views));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
-			buffers.binding,
+			buffer_set.binding,
 			0,
-			get_binding(buffers.binding).descriptorType,
+			get_binding(buffer_set.binding).descriptorType,
 			nullptr,
 			nullptr,
 			view_handles
@@ -217,10 +234,10 @@ public:
 				set_info.setDescriptorType(get_binding(image_set->binding).descriptorType);
 
 				auto& info_vec = image_infos.emplace_back();
-				for (const texture& tex : image_set->data) {
+				for (const image_view& view: image_set->image_views) {
 					info_vec.push_back(vk::DescriptorImageInfo{
 						vk::Sampler{},
-						*tex.get_image_view()->get_vk_image_view(),
+						*view.get_vk_image_view(),
 						vk::ImageLayout::eShaderReadOnlyOptimal
 					});
 				}
@@ -232,7 +249,7 @@ public:
 				set_info.setDescriptorType(get_binding(sampler_set->binding).descriptorType);
 
 				auto& info_vec = sampler_infos.emplace_back();
-				for (const sampler& samp : sampler_set->data) {
+				for (const sampler& samp : sampler_set->samplers) {
 					info_vec.push_back(vk::DescriptorImageInfo{
 						*samp.get_vk_sampler(),
 						vk::ImageView{},
@@ -247,7 +264,7 @@ public:
 				set_info.setDescriptorType(get_binding(buffer_set->binding).descriptorType);
 
 				auto& info_vec = buffer_infos.emplace_back();
-				for (const buffer<void>& buffer : buffer_set->data) {
+				for (const buffer<void>& buffer : buffer_set->buffers) {
 					info_vec.push_back(vk::DescriptorBufferInfo{*buffer.get_vk_buffer(), 0, VK_WHOLE_SIZE});
 				}
 
@@ -258,7 +275,7 @@ public:
 				set_info.setDescriptorType(get_binding(texel_buffer_set->binding).descriptorType);
 
 				auto& view_vec = texel_buffer_infos.emplace_back();
-				view_vec = vkw::util::to_vector(vkw::util::as_handles(texel_buffer_set->data));
+				view_vec = vkw::util::to_vector(vkw::util::as_handles(texel_buffer_set->buffer_views));
 
 				set_info.setTexelBufferView(view_vec);
 			}
