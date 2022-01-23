@@ -39,7 +39,7 @@ public:
 		push_constant_ranges(ranges.begin(), ranges.end()),
 		layout(nullptr) {
 
-		const auto vk_layouts = vkw::util::to_vector(std::views::transform(descriptor_layouts, [](auto&& layout) { return *layout->get_vk_layout(); }));
+		const auto vk_layouts = ranges::to<std::vector>(descriptor_layouts | std::views::transform([](auto&& layout) { return *layout->get_vk_layout(); }));
 
 		const auto layout_create_info = vk::PipelineLayoutCreateInfo{
 			vk::PipelineLayoutCreateFlags{},
@@ -82,10 +82,7 @@ public:
 		std::span<const descriptor_set> descriptor_sets,
 		const std::vector<uint32_t>& offsets
 	) const -> void {
-		const auto sets = vkw::util::to_vector(std::views::transform(descriptor_sets, [](auto&& set) {
-			return *set.get_vk_descriptor_set();
-		}));
-
+		const auto sets = ranges::to<std::vector>(descriptor_sets | std::views::transform([](auto&& set) { return *set.get_vk_descriptor_set();}));
 		cmd_buffer.bindDescriptorSets(bind_point, *get_vk_layout(), first_set, sets, offsets);
 	}
 

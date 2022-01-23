@@ -13,6 +13,9 @@ module;
 
 export module vkw.util;
 
+export import vkw.ranges;
+
+
 template<typename T>
 concept smart_pointer = requires {
 	requires
@@ -31,22 +34,6 @@ template<typename T>
 concept pointer = raw_pointer<T> || smart_pointer<T>;
 
 export namespace vkw::util {
-
-/// Converts a range to a vector
-template <std::ranges::range R>
-[[nodiscard]]
-constexpr auto to_vector(R&& r) -> std::vector<std::ranges::range_value_t<R>> {
-	auto result = std::vector<std::ranges::range_value_t<R>>{};
-
-	// Reserve space if possible
-	if constexpr (std::ranges::sized_range<R>) {
-		result.reserve(std::ranges::size(r));
-	}
-
-	std::ranges::copy(r, std::back_inserter(result));
-
-	return result;
-}
 
 /// Convert a vk::raii::X object to its vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
 template<typename T>

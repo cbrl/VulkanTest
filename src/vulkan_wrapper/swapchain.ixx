@@ -148,7 +148,7 @@ public:
 
 	[[nodiscard]]
 	auto get_images() -> std::vector<std::shared_ptr<image>> {
-		return vkw::util::to_vector(std::views::transform(images, [this](auto& img) {
+		return ranges::to<std::vector>(images | std::views::transform([this](auto&& img) {
 			return std::shared_ptr<image>{shared_from_this(), img.get()};
 		}));
 	}
@@ -160,7 +160,7 @@ public:
 
 	[[nodiscard]]
 	auto get_image_views() -> std::vector<std::shared_ptr<image_view>> {
-		return vkw::util::to_vector(std::views::transform(image_views, [this](auto& view) {
+		return ranges::to<std::vector>(image_views | std::views::transform([this](auto&& view) {
 			return std::shared_ptr<image_view>{shared_from_this(), &view};
 		}));
 	}

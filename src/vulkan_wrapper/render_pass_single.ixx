@@ -202,7 +202,7 @@ public:
 		}
 
 		// All frames should have the same attachment formats
-		auto result = vkw::util::to_vector(color_image_views.front() | transform([](auto&& view) { return view->get_info().format; }));
+		auto result = ranges::to<std::vector>(color_image_views.front() | transform([](auto&& view) { return view->get_info().format; }));
 
 		const auto [ret, last] = std::ranges::unique(result);
 		result.erase(ret, last);

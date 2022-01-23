@@ -288,7 +288,7 @@ public:
 
 	[[nodiscard]]
 	auto get_queues(vk::QueueFlags flag) const -> std::vector<std::shared_ptr<queue>> {
-		return vkw::util::to_vector(std::views::transform(queue_map[flag], [this](queue& q) {
+		return ranges::to<std::vector>(std::views::transform(queue_map[flag], [this](queue& q) {
 			return std::shared_ptr<queue>{shared_from_this(), &q};
 		}));
 	}

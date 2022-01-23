@@ -249,7 +249,7 @@ public:
 
 	[[nodiscard]]
 	auto get_physical_devices() const noexcept -> std::vector<std::shared_ptr<vk::raii::PhysicalDevice>> {
-		return vkw::util::to_vector(std::views::transform(physical_devices, [this](const auto& device) {
+		return ranges::to<std::vector>(std::views::transform(physical_devices, [this](const auto& device) {
 			return std::shared_ptr<vk::raii::PhysicalDevice>(shared_from_this(), const_cast<vk::raii::PhysicalDevice*>(&device));
 		}));
 	}

@@ -41,6 +41,7 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/pipeline.ixx
 	src/vulkan_wrapper/pipeline_layout.ixx
 	src/vulkan_wrapper/queue.ixx
+	src/vulkan_wrapper/ranges.ixx
 	src/vulkan_wrapper/render_pass.ixx
 	src/vulkan_wrapper/render_pass_single.ixx
 	src/vulkan_wrapper/sampler.ixx

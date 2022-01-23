@@ -165,7 +165,7 @@ public:
 	}
 
 	auto update(const write_sampler_set& sampler_set) -> void {
-		const auto sampler_infos = vkw::util::to_vector(std::views::transform(sampler_set.samplers, [](const sampler& samp) {
+		const auto sampler_infos = ranges::to<std::vector>(std::views::transform(sampler_set.samplers, [](const sampler& samp) {
 			return vk::DescriptorImageInfo{
 				*samp.get_vk_sampler(),
 				vk::ImageView{},
@@ -185,7 +185,7 @@ public:
 	}
 
 	auto update(const write_buffer_set& buffer_set) -> void {
-		const auto buffer_infos = vkw::util::to_vector(std::views::transform(buffer_set.buffers, [](const buffer<>& buf) {
+		const auto buffer_infos = ranges::to<std::vector>(std::views::transform(buffer_set.buffers, [](const buffer<>& buf) {
 			return vk::DescriptorBufferInfo{*buf.get_vk_buffer(), 0, VK_WHOLE_SIZE};
 		}));
 
@@ -202,7 +202,7 @@ public:
 	}
 
 	auto update(const write_texel_buffer_set& buffer_set) -> void {
-		const auto view_handles = vkw::util::to_vector(vkw::util::as_handles(buffer_set.buffer_views));
+		const auto view_handles = ranges::to<std::vector>(vkw::util::as_handles(buffer_set.buffer_views));
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
@@ -275,7 +275,7 @@ public:
 				set_info.setDescriptorType(get_binding(texel_buffer_set->binding).descriptorType);
 
 				auto& view_vec = texel_buffer_infos.emplace_back();
-				view_vec = vkw::util::to_vector(vkw::util::as_handles(texel_buffer_set->buffer_views));
+				view_vec = ranges::to<std::vector>(vkw::util::as_handles(texel_buffer_set->buffer_views));
 
 				set_info.setTexelBufferView(view_vec);
 			}

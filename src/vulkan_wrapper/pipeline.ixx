@@ -165,7 +165,7 @@ static auto create_pipeline(const logical_device& device, const graphics_pipelin
 	assert(info.layout && "graphics_pipeline_info::layout must not be null");
 	assert((info.pass_details.index() != 0) && "graphics_pipeline_info::pass_details must not be null");
 
-	const auto stages = util::to_vector(std::views::transform(info.shader_stages, &shader_stage::get_create_info));
+	const auto stages = ranges::to<std::vector>(info.shader_stages | std::views::transform(&shader_stage::get_create_info));
 
 	if (const auto* pass_info = std::get_if<graphics_pipeline_info::render_pass_details>(&info.pass_details)) {
 		const auto pipeline_create_info = vk::GraphicsPipelineCreateInfo{

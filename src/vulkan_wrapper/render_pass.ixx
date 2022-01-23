@@ -34,7 +34,7 @@ export struct render_pass_info {
 
 [[nodiscard]]
 auto create_render_pass(const logical_device& device, const render_pass_info& info) -> vk::raii::RenderPass {
-	const auto subpass_descriptions = vkw::util::to_vector(std::views::transform(info.subpasses, &subpass::get_description));
+	const auto subpass_descriptions = ranges::to<std::vector>(info.subpasses | std::views::transform(&subpass::get_description));
 
 	const auto create_info = vk::RenderPassCreateInfo{
 		vk::RenderPassCreateFlags{},
@@ -52,7 +52,7 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 	framebuffers.reserve(info.target_attachments.size());
 
 	for (const auto& attachment : info.target_attachments) {
-		const auto view_handles = vkw::util::to_vector(std::views::transform(attachment, [](const auto& a) { return *a->get_vk_image_view(); }));
+		const auto view_handles = ranges::to<std::vector>(attachment | std::views::transform([](auto&& a) { return *a->get_vk_image_view(); }));
 
 		const auto create_info = vk::FramebufferCreateInfo{
 			vk::FramebufferCreateFlags{},

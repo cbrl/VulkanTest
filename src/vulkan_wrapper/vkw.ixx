@@ -11,6 +11,7 @@ export import vkw.logical_device;
 export import vkw.pipeline;
 export import vkw.pipeline_layout;
 export import vkw.queue;
+export import vkw.ranges;
 export import vkw.render_pass;
 export import vkw.render_pass_single;
 export import vkw.sampler;
