@@ -17,6 +17,6 @@ export import vkw.sampler;
 export import vkw.shader;
 export import vkw.subpass;
 export import vkw.swapchain;
-export import vkw.texture;
+//export import vkw.texture;
 export import vkw.util;
 export import vkw.window;

@@ -44,6 +44,16 @@ export struct image_view_info {
 export class image {
 	friend class swapchain;
 
+	[[nodiscard]]
+	static auto create(std::shared_ptr<logical_device> device, vk::Image img, const image_info& info) -> std::shared_ptr<image> {
+		struct enable_construction : public image {
+			enable_construction(std::shared_ptr<logical_device> device, vk::Image img, const image_info& info) :
+				image(std::move(device), img, info) {
+			}
+		};
+		return std::make_shared<enable_construction>(std::move(device), img, info);
+	}
+
 	image(std::shared_ptr<logical_device> logic_device, vk::Image img, const image_info& info) :
 		device(std::move(logic_device)),
 		info(info),
@@ -72,6 +82,11 @@ public:
 	}
 
 	[[nodiscard]]
+	auto get_device() const noexcept -> const std::shared_ptr<logical_device>& {
+		return device;
+	}
+
+	[[nodiscard]]
 	auto get_vk_image() const noexcept -> const vk::raii::Image& {
 		return vk_image;
 	}
@@ -92,41 +107,19 @@ private:
 
 
 export class image_view {
-	friend class swapchain;
-
-	image_view(std::shared_ptr<logical_device> logic_device, vk::Image img, const image_view_info& info) :
-		device(std::move(logic_device)),
-		img(nullptr),
-		info(info),
-		view(nullptr) {
-
-		view = vk::raii::ImageView{
-			device->get_vk_device(),
-			vk::ImageViewCreateInfo{
-				info.flags,
-				img,
-				info.view_type,
-				info.format,
-				info.components,
-				info.subresource_range
-			}
-		};
-	}
-
 public:
 	[[nodiscard]]
-	static auto create(std::shared_ptr<logical_device> device, std::shared_ptr<image> img, const image_view_info& info) -> std::shared_ptr<image_view> {
-		return std::make_shared<image_view>(std::move(device), std::move(img), info);
+	static auto create(std::shared_ptr<image> img, const image_view_info& info) -> std::shared_ptr<image_view> {
+		return std::make_shared<image_view>(std::move(img), info);
 	}
 
-	image_view(std::shared_ptr<logical_device> logic_device, std::shared_ptr<image> src_img, const image_view_info& info) :
-		device(std::move(logic_device)),
+	image_view(std::shared_ptr<image> src_img, const image_view_info& info) :
 		img(std::move(src_img)),
 		info(info),
 		view(nullptr) {
 
 		view = vk::raii::ImageView{
-			device->get_vk_device(),
+			img->get_device()->get_vk_device(),
 			vk::ImageViewCreateInfo{
 				info.flags,
 				*img->get_vk_image(),
@@ -148,8 +141,12 @@ public:
 		return view;
 	}
 
+	[[nodiscard]]
+	auto get_image() const noexcept -> const std::shared_ptr<image>& {
+		return img;
+	}
+
 private:
-	std::shared_ptr<logical_device> device;
 	std::shared_ptr<image> img;
 
 	image_view_info info;
@@ -258,6 +255,43 @@ auto create_layout_barrier(
 
 auto create_layout_barrier(const image& img, vk::ImageLayout old_layout, vk::ImageLayout new_layout) {
 	return create_layout_barrier(*img.get_vk_image(), format_to_aspect(img.get_info().create_info.format), old_layout, new_layout);
+}
+
+
+[[nodiscard]]
+auto create_depth_buffer(const std::shared_ptr<logical_device>& device, vk::Format format, const vk::Extent2D& extent) -> std::shared_ptr<image_view> {
+	auto img_info = image_info{};
+	img_info.create_info.format = format;
+	img_info.create_info.extent = vk::Extent3D{extent, 1};
+	img_info.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+	img_info.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
+
+	const auto view_info = image_view_info{
+		.view_type         = vk::ImageViewType::e2D,
+		.format            = format,
+		.components        = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA},
+		.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1},
+	};
+
+	return image_view::create(image::create(device, img_info), view_info);
+}
+
+[[nodiscard]]
+auto create_depth_stencil_buffer(const std::shared_ptr<logical_device>& device, vk::Format format, const vk::Extent2D& extent) -> std::shared_ptr<image_view> {
+	auto img_info = image_info{};
+	img_info.create_info.format = format;
+	img_info.create_info.extent = vk::Extent3D{extent, 1};
+	img_info.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+	img_info.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
+
+	const auto view_info = image_view_info{
+		.view_type         = vk::ImageViewType::e2D,
+		.format            = format,
+		.components        = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA},
+		.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1},
+	};
+
+	return image_view::create(image::create(device, img_info), view_info);
 }
 
 } //namespace util

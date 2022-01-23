@@ -25,6 +25,7 @@
 
 import vkw;
 
+
 // TODO:
 //   - Add buffer_view class to encapsulate vk::raii::BufferView
 //   - Use descriptor indexing (core in Vulkan 1.2)
@@ -32,6 +33,7 @@ import vkw;
 //     - Configurable descriptor counts with large defaults
 //     - Track free indices and assign them at resource creation
 //   - Integrate VMA
+
 
 auto main(int argc, char** argv) -> int {
 	// Instance
@@ -137,7 +139,7 @@ auto main(int argc, char** argv) -> int {
 
 	// Depth Buffer
 	//--------------------------------------------------------------------------------
-	auto depth_buffers = std::vector<std::shared_ptr<vkw::texture>>{};
+	auto depth_buffers = std::vector<std::shared_ptr<vkw::image_view>>{};
 	for (auto _ : std::views::iota(size_t{0}, swapchain->get_image_count())) {
 		depth_buffers.push_back(vkw::util::create_depth_buffer(
 			logical_device,

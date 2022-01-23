@@ -67,7 +67,7 @@ auto create_image(const std::shared_ptr<logical_device>& device, const texture_i
 }
 
 [[nodiscard]]
-auto create_image_view(const std::shared_ptr<logical_device>& device, const std::shared_ptr<image>& img, const texture_info& tex_info) -> std::shared_ptr<image_view> {
+auto create_image_view(const std::shared_ptr<image>& img, const texture_info& tex_info) -> std::shared_ptr<image_view> {
 	auto view_nfo = tex_info.view;
 
 	view_nfo.subresource_range.baseMipLevel   = 0;
@@ -76,7 +76,7 @@ auto create_image_view(const std::shared_ptr<logical_device>& device, const std:
 	view_nfo.subresource_range.baseArrayLayer = 0;
 	view_nfo.subresource_range.layerCount     = std::max<uint32_t>(1, static_cast<uint32_t>(tex_info.image_layers.size()));
 
-	return image_view::create(device, img, view_nfo);
+	return image_view::create(img, view_nfo);
 }
 
 
@@ -90,7 +90,7 @@ public:
 	texture(std::shared_ptr<logical_device> logic_device, const texture_info& tex_info) :
 		device(std::move(logic_device)),
 		image_data(create_image(device, tex_info)),
-		view(create_image_view(device, image_data, tex_info)),
+		view(create_image_view(image_data, tex_info)),
 		image_layers(tex_info.image_layers) {
 
 		// All layers should have the same number of mip levels
@@ -211,46 +211,4 @@ private:
 	bool needs_staging;
 };
 
-
-export namespace util {
-	
-[[nodiscard]]
-auto create_depth_buffer(const std::shared_ptr<logical_device>& device, vk::Format format, const vk::Extent2D& extent) -> std::shared_ptr<texture> {
-	auto info = texture_info{};
-
-	info.force_staging = true;
-
-	info.img.create_info.format = format;
-	info.img.create_info.extent = vk::Extent3D{extent, 1};
-	info.img.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
-	info.img.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
-
-	info.view.view_type         = vk::ImageViewType::e2D;
-	info.view.format            = format;
-	info.view.components        = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-	info.view.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1};
-
-	return texture::create(device, info);
-}
-
-[[nodiscard]]
-auto create_depth_stencil_buffer(const std::shared_ptr<logical_device>& device, vk::Format format, const vk::Extent2D& extent) -> std::shared_ptr<texture> {
-	auto info = texture_info{};
-
-	info.force_staging = true;
-
-	info.img.create_info.format = format;
-	info.img.create_info.extent = vk::Extent3D{extent, 1};
-	info.img.create_info.usage  = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
-	info.img.memory_properties  = vk::MemoryPropertyFlagBits::eDeviceLocal;
-
-	info.view.view_type         = vk::ImageViewType::e2D;
-	info.view.format            = format;
-	info.view.components        = vk::ComponentMapping{vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA};
-	info.view.subresource_range = vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1};
-
-	return texture::create(device, info);
-}
-
-} //namespace util
 } //namespace vkw

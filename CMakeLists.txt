@@ -47,7 +47,7 @@ add_executable(${PROJECT_NAME}
 	src/vulkan_wrapper/shader.ixx
 	src/vulkan_wrapper/subpass.ixx
 	src/vulkan_wrapper/swapchain.ixx
-	src/vulkan_wrapper/texture.ixx
+	#src/vulkan_wrapper/texture.ixx
 	src/vulkan_wrapper/util.ixx
 	src/vulkan_wrapper/window.ixx
 	#src/glslang/StandAlone/ResourceLimits.cpp

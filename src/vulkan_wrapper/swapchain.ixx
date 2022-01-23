@@ -141,19 +141,21 @@ public:
 
 	[[nodiscard]]
 	auto get_image(size_t idx) -> std::shared_ptr<image> {
-		return std::shared_ptr<image>{shared_from_this(), & images.at(idx)};
+		// The image is already a shared_ptr, but we want the returned shared_ptr to extend the entire swapchain's
+		// lifetime. The swapchain's reference count is used for the resulting shared_ptr instead of the image's.
+		return std::shared_ptr<image>{shared_from_this(), images.at(idx).get()};
 	}
 
 	[[nodiscard]]
 	auto get_images() -> std::vector<std::shared_ptr<image>> {
 		return vkw::util::to_vector(std::views::transform(images, [this](auto& img) {
-			return std::shared_ptr<image>{shared_from_this(), &img};
+			return std::shared_ptr<image>{shared_from_this(), img.get()};
 		}));
 	}
 
 	[[nodiscard]]
 	auto get_image_view(size_t idx) -> std::shared_ptr<image_view> {
-		return std::shared_ptr<image_view>{shared_from_this(), & image_views.at(idx)};
+		return std::shared_ptr<image_view>{shared_from_this(), &image_views.at(idx)};
 	}
 
 	[[nodiscard]]
@@ -167,8 +169,6 @@ private:
 
 	auto create_impl() -> void {
 		invalidate_images();
-		image_views.clear();
-		images.clear();
 
 		const auto& vk_physical_device = device->get_vk_physical_device();
 
@@ -232,15 +232,18 @@ private:
 		images.reserve(swap_images.size());
 		image_views.reserve(swap_images.size());
 		for (auto img : swap_images) {
-			images.emplace_back(image{device, vk::Image{img}, img_info});
-			image_views.emplace_back(image_view{device, vk::Image{img}, view_info});
+			images.push_back(image::create(device, vk::Image{img}, img_info));
+			image_views.push_back(image_view{images.back(), view_info});
 		}
 	}
 
 	auto invalidate_images() noexcept -> void {
 		for (auto& img : images) {
-			const_cast<vk::raii::Image&>(img.get_vk_image()) = vk::raii::Image{nullptr}; //hacky way to prevent destruction of the swapchain-owned images
+			// Hacky way to prevent destruction of the swapchain-owned images
+			const_cast<vk::raii::Image&>(img->get_vk_image()) = vk::raii::Image{nullptr};
 		}
+		image_views.clear();
+		images.clear();
 	}
 
 
@@ -255,7 +258,7 @@ private:
 	std::vector<uint32_t> shared_queues = {};
 
 	std::unique_ptr<vk::raii::SwapchainKHR> vk_swapchain;
-	std::vector<image> images;
+	std::vector<std::shared_ptr<image>> images;
 	std::vector<image_view> image_views;
 };
 
