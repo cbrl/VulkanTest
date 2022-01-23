@@ -42,6 +42,11 @@ auto create_image(const std::shared_ptr<logical_device>& device, const texture_i
 	auto image_nfo = tex_info.img;
 	image_nfo.create_info.usage |= vk::ImageUsageFlagBits::eSampled;
 	
+	if (not tex_info.image_layers.empty()) {
+		image_nfo.create_info.mipLevels   = tex_info.image_layers[0].size();
+		image_nfo.create_info.arrayLayers = tex_info.image_layers.size();
+	}
+	
 	if (needs_staging) {
 		image_nfo.create_info.tiling        = vk::ImageTiling::eOptimal;
 		image_nfo.create_info.usage         |= vk::ImageUsageFlagBits::eTransferDst;
@@ -87,6 +92,9 @@ public:
 		image_data(create_image(device, tex_info)),
 		view(create_image_view(device, image_data, tex_info)),
 		image_layers(tex_info.image_layers) {
+
+		// All layers should have the same number of mip levels
+		assert(std::ranges::all_of(tex_info.image_layers, [&](auto&& layer) { return layer.size() == tex_info.image_layers[0].size(); }));
 
 		needs_staging = tex_info.force_staging || is_staging_required(*device, tex_info.img.create_info.format);
 	}
