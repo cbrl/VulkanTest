@@ -385,7 +385,7 @@ auto main(int argc, char** argv) -> int {
 	// Submit and wait
 	//--------------------------------------------------------------------------------
 	const auto draw_fence  = vk::raii::Fence{logical_device->get_vk_device(), vk::FenceCreateInfo{}};
-	const auto buffers     = vkw::ranges::to<std::vector>(vkw::util::as_handles(batch->get_command_buffers(0)));
+	const auto buffers     = vkw::ranges::to<std::vector>(batch->get_command_buffers(0) | vkw::util::as_handles());
 	const auto stage_flags = vk::PipelineStageFlags{vk::PipelineStageFlagBits::eColorAttachmentOutput};
 	const auto submit_info = vk::SubmitInfo{*image_acquired_semaphore, stage_flags, buffers};
 	logical_device->get_queue(vk::QueueFlagBits::eGraphics, 0)->submit(submit_info, *draw_fence);

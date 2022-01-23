@@ -38,7 +38,7 @@ export namespace vkw::util {
 /// Convert a vk::raii::X object to its vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
 template<typename T>
 [[nodiscard]]
-auto as_handle(T&& v) {
+inline auto as_handle(const T& v) {
 	constexpr auto pointer_like = pointer<std::remove_cvref_t<T>>;
 
 	constexpr auto ref_wrapper_like = requires(std::remove_cvref_t<T> v) {
@@ -58,25 +58,27 @@ auto as_handle(T&& v) {
 	}
 }
 
-/// A transform_view that views a range of vk::raii::X objects as their vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
-template<typename T>
-constexpr auto handle_view = std::views::transform(as_handle<T>);
+[[nodiscard]]
+inline auto as_handles() {
+	return std::views::transform([](auto&& n) { return as_handle(n); });
+}
 
 template<std::ranges::viewable_range R>
 [[nodiscard]]
-auto as_handles(R&& r) {
-	return std::views::transform(std::forward<R>(r), [](auto&& n) { return as_handle(n); });
+inline auto as_handles(R&& r) {
+	//return handle_view{}(std::forward<R>(r));
+	return std::views::transform(std::forward<R>(r), as_handle<std::ranges::range_value_t<R>>);
 }
 
 [[nodiscard]]
-auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
+inline auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {
 	return std::ranges::any_of(extension_properties, [&](const auto& prop) {
 		return strcmp(extension, prop.extensionName.data()) == 0;
 	});
 }
 
 [[nodiscard]]
-auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
+inline auto contains_property(const std::vector<vk::LayerProperties>& layer_properties, const char* layer) -> bool {
 	return std::ranges::any_of(layer_properties, [&](const auto& prop) {
 		return strcmp(layer, prop.layerName.data()) == 0;
 	});

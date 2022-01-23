@@ -202,7 +202,7 @@ public:
 	}
 
 	auto update(const write_texel_buffer_set& buffer_set) -> void {
-		const auto view_handles = ranges::to<std::vector>(vkw::util::as_handles(buffer_set.buffer_views));
+		const auto view_handles = ranges::to<std::vector>(buffer_set.buffer_views | util::as_handles());
 
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
@@ -275,7 +275,7 @@ public:
 				set_info.setDescriptorType(get_binding(texel_buffer_set->binding).descriptorType);
 
 				auto& view_vec = texel_buffer_infos.emplace_back();
-				view_vec = ranges::to<std::vector>(vkw::util::as_handles(texel_buffer_set->buffer_views));
+				view_vec = ranges::to<std::vector>(texel_buffer_set->buffer_views | util::as_handles());
 
 				set_info.setTexelBufferView(view_vec);
 			}

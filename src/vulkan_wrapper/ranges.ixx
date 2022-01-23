@@ -6,7 +6,8 @@ module;
 
 export module vkw.ranges;
 
-// Pre-C++23 implementation of std::ranges::to
+// Pre-C++23 implementation of std::ranges::to. Only GCC currently supports the full set of operations. Notably, MSVC
+// will fail to compile "view | ranges::to<std::vector>()", but will compile "ranges::to<std::vector>(view)".
 namespace vkw::ranges {
 
 struct from_range_t { explicit from_range_t() = default; };
@@ -101,8 +102,10 @@ struct unwrap<wrap<Cont>, Rng, Args...> {
     template <typename R>
     static auto from_rng(int) -> decltype(Cont(range_common_iterator<Rng>(), range_common_iterator<Rng>(), std::declval<Args>()...));
 
-    //template <typename R>
-    //static auto from_rng(long) -> decltype(Cont(from_range, std::declval<Rng>(), std::declval<Args>()...));
+    #ifndef _MSC_VER
+    template <typename R>
+    static auto from_rng(long) -> decltype(Cont(from_range, std::declval<Rng>(), std::declval<Args>()...));
+    #endif
 
     using type = std::remove_cvref_t<std::remove_pointer_t<decltype(from_rng<Rng>(0))>>;
 };
