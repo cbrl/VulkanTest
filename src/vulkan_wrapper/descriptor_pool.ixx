@@ -93,7 +93,7 @@ public:
 
 	[[nodiscard]]
 	auto allocate(std::span<const std::shared_ptr<descriptor_set_layout>> layouts) -> std::vector<std::shared_ptr<descriptor_set>> {
-		const auto vk_layouts = vkw::ranges::to<std::vector>(layouts | std::views::transform([](auto&& layout) { return *layout->get_vk_handle(); }));
+		const auto vk_layouts = vkw::ranges::to<std::vector>(layouts | util::as_handles());
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
 		auto sets = vk::raii::DescriptorSets{device->get_vk_handle(), allocate_info};

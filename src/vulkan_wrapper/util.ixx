@@ -33,42 +33,88 @@ concept raw_pointer = requires(T v) {
 template<typename T>
 concept pointer = raw_pointer<T> || smart_pointer<T>;
 
+template<typename T>
+concept ref_wrapper = requires(T v) {
+	typename decltype(v)::type;
+	v.get();
+	requires std::is_reference_v<decltype(v.get())>;
+	std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename decltype(v)::type>>;
+};
+
+template<typename T>
+concept vkw_handle_type = requires(T v) { v.get_vk_handle(); };
+
 export namespace vkw::util {
+template<typename T>
+[[nodiscard]]
+inline auto as_raii_handle(const T& v) -> decltype(auto) {
+	if constexpr (pointer<T>) {
+		static_assert(requires(T v) { v->get_vk_handle(); }, "Not a vkw type which supports T::get_vk_handle()");
+		return v->get_vk_handle();
+	}
+	else if constexpr (ref_wrapper<T>) {
+		static_assert(requires(T v) { v.get().get_vk_handle(); }, "Not a vkw type which supports T::get_vk_handle()");
+		return v.get().get_vk_handle();
+	}
+	else {
+		static_assert(requires(T v) { v.get_vk_handle(); }, "Not a vkw type which supports T::get_vk_handle()");
+		return v.get_vk_handle();
+	}
+}
 
 /// Convert a vk::raii::X object to its vk::X handle. Works on ranges of value, pointer-like, or reference_wrapper-like types.
 template<typename T>
 [[nodiscard]]
 inline auto as_handle(const T& v) {
-	constexpr auto pointer_like = pointer<std::remove_cvref_t<T>>;
-
-	constexpr auto ref_wrapper_like = requires(std::remove_cvref_t<T> v) {
-		typename decltype(v)::type;
-		v.get();
-		std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename decltype(v)::type>>;
-	};
-
-	if constexpr (pointer_like) {
-		return **v;
+	if constexpr (pointer<T>) {
+		if constexpr (vkw_handle_type<std::remove_cvref_t<decltype(*v)>>) {
+			return *as_raii_handle(v);
+		}
+		else {
+			return **v;
+		}
 	}
-	else if constexpr (ref_wrapper_like) {
-		return *v.get();
+	else if constexpr (ref_wrapper<T>) {
+		if constexpr (vkw_handle_type<std::remove_cvref_t<decltype(v.get())>>) {
+			return *as_raii_handle(v);
+		}
+		else {
+			return *v.get();
+		}
 	}
 	else {
-		return *v;
+		if constexpr (vkw_handle_type<T>) {
+			return *as_raii_handle(v);
+		}
+		else {
+			return *v;
+		}
 	}
 }
+
 
 [[nodiscard]]
 inline auto as_handles() {
 	return std::views::transform([](auto&& n) { return as_handle(n); });
 }
 
+[[nodiscard]]
+inline auto as_raii_handles() {
+	return std::views::transform([](auto&& n) { return as_raii_handle(n); });
+}
+
 template<std::ranges::viewable_range R>
 [[nodiscard]]
 inline auto as_handles(R&& r) {
-	//return handle_view{}(std::forward<R>(r));
 	return std::views::transform(std::forward<R>(r), as_handle<std::ranges::range_value_t<R>>);
 }
+
+template<std::ranges::viewable_range R>
+[[nodiscard]]
+inline auto as_raii_handles(R&& r) {
+	return std::views::transform(std::forward<R>(r), as_raii_handle<std::ranges::range_value_t<R>>);
+}
+
 
 [[nodiscard]]
 inline auto contains_property(const std::vector<vk::ExtensionProperties>& extension_properties, const char* extension) -> bool {

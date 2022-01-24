@@ -52,7 +52,7 @@ auto create_framebuffers(const logical_device& device, const vk::raii::RenderPas
 	framebuffers.reserve(info.target_attachments.size());
 
 	for (const auto& attachment : info.target_attachments) {
-		const auto view_handles = ranges::to<std::vector>(attachment | std::views::transform([](auto&& a) { return *a->get_vk_handle(); }));
+		const auto view_handles = ranges::to<std::vector>(attachment | util::as_handles());
 
 		const auto create_info = vk::FramebufferCreateInfo{
 			vk::FramebufferCreateFlags{},
