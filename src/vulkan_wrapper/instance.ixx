@@ -2,9 +2,12 @@ module;
 
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <ranges>
 #include <string>
+#include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include <vulkan/vulkan_raii.hpp>
@@ -18,29 +21,29 @@ import vkw.util;
 namespace vkw {
 
 namespace util {
-export auto get_surface_extensions() -> std::vector<const char*> {
-	auto extensions = std::vector<const char*>{};
-	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+export auto get_surface_extensions() -> std::unordered_set<std::string_view> {
+	auto extensions = std::unordered_set<std::string_view>{};
+	extensions.emplace(VK_KHR_SURFACE_EXTENSION_NAME);
 	#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_IOS_MVK)
-	extensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_MACOS_MVK)
-	extensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_MIR_KHR)
-	extensions.push_back(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_MIR_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_VI_NN)
-	extensions.push_back(VK_NN_VI_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_NN_VI_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_WIN32_KHR)
-	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_XCB_KHR)
-	extensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+	extensions.emplace(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 	#elif defined(VK_USE_PLATFORM_XLIB_XRANDR_EXT)
-	extensions.push_back(VK_EXT_ACQUIRE_XLIB_DISPLAY_EXTENSION_NAME);
+	extensions.emplace(VK_EXT_ACQUIRE_XLIB_DISPLAY_EXTENSION_NAME);
 	#endif
 	return extensions;
 }
@@ -62,13 +65,36 @@ export struct app_info {
 };
 
 export struct instance_info {
-	std::vector<const char*> layers = {};
-	std::vector<const char*> extensions = {};
+	std::unordered_set<std::string_view> layers = {};
+	std::unordered_set<std::string_view> extensions = util::get_surface_extensions();
 };
 
 export struct debug_info {
-	bool utils = false;
-	bool validation = false;
+	struct util_info {
+		bool enabled = false;
+
+		vk::DebugUtilsMessageSeverityFlagsEXT severity_flags =
+			vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+
+		vk::DebugUtilsMessageTypeFlagsEXT message_type_flags =
+			vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
+			| vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+			| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
+
+		PFN_vkDebugUtilsMessengerCallbackEXT debug_callback = &debug::debug_utils_messenger_callback;
+		void* user_data = nullptr;
+	};
+
+	struct validation_info {
+		bool enabled = false;
+
+		std::unordered_set<vk::ValidationFeatureEnableEXT> enabled_features = {vk::ValidationFeatureEnableEXT::eSynchronizationValidation, vk::ValidationFeatureEnableEXT::eBestPractices};
+		std::unordered_set<vk::ValidationFeatureDisableEXT> disabled_features;
+	};
+
+	util_info utils;
+	validation_info validation;
 };
 
 
@@ -81,32 +107,38 @@ auto process_config(const vk::raii::Context& context, const instance_info& insta
 	const auto extension_properties = context.enumerateInstanceExtensionProperties();
 
 	// Add the debug utils layer if requested
-	if (debug_config.utils) {
-		const bool has_debug_utils = std::ranges::any_of(instance_config.extensions, [](const char* ext) {
-			return strcmp(ext, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0;
-		});
-
+	if (debug_config.utils.enabled) {
 		const bool debug_utils_exist = std::ranges::any_of(extension_properties, [](const vk::ExtensionProperties& ep) {
 			return strcmp(ep.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0;
 		});
 
-		if (!has_debug_utils && debug_utils_exist) {
-			output.extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		if (debug_utils_exist) {
+			output.extensions.emplace(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		}
+		else if (not debug_utils_exist) {
+			std::cout << "Debug utils requested but VK_EXT_debug_utils is not available" << std::endl;
 		}
 	}
 
 	// Add the validation layer if requested
-	if (debug_config.validation) {
-		const auto has_validation_layer = std::ranges::any_of(instance_config.layers, [](const char* layer) {
-			return strcmp(layer, "VK_LAYER_KHRONOS_validation") == 0;
-		});
-
+	if (debug_config.validation.enabled) {
 		const auto validation_layer_exists = std::ranges::any_of(layer_properties, [](const vk::LayerProperties& lp) {
-			return strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation");
+			return strcmp(lp.layerName, "VK_LAYER_KHRONOS_validation") == 0;
 		});
 
-		if (!has_validation_layer && validation_layer_exists) {
-			output.layers.push_back("VK_LAYER_KHRONOS_validation");
+		if (validation_layer_exists) {
+			output.layers.emplace("VK_LAYER_KHRONOS_validation");
+		}
+		else {
+			std::cout << "Validation layer requested but VK_LAYER_KHRONOS_validation is not available" << std::endl;
+		}
+
+		const auto validation_features_exist = std::ranges::any_of(layer_properties, [](const vk::LayerProperties& lp) {
+			return strcmp(lp.layerName, VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME) == 0;
+		});
+
+		if (validation_features_exist) {
+			output.extensions.emplace(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
 		}
 	}
 
@@ -134,8 +166,14 @@ auto create_instance(
 	validate_instance_info(context, instance_config);
 
 	// Build app/engine versions
-	const auto app_version = VK_MAKE_VERSION(app_config.app_version_major, app_config.app_version_minor, app_config.app_vesrion_patch);
+	const auto app_version    = VK_MAKE_VERSION(app_config.app_version_major, app_config.app_version_minor, app_config.app_vesrion_patch);
 	const auto engine_version = VK_MAKE_VERSION(app_config.engine_version_major, app_config.engine_version_minor, app_config.engine_vesrion_patch);
+
+	const auto layer_data     = ranges::to<std::vector<const char*>>(instance_config.layers | std::views::transform(&std::string_view::data));
+	const auto extension_data = ranges::to<std::vector<const char*>>(instance_config.extensions | std::views::transform(&std::string_view::data));
+
+	const auto enabled_validation  = ranges::to<std::vector>(debug_config.validation.enabled_features);
+	const auto disabled_validation = ranges::to<std::vector>(debug_config.validation.disabled_features);
 
 	// Application info struct
 	const auto application_info = vk::ApplicationInfo{
@@ -146,43 +184,36 @@ auto create_instance(
 		app_config.api_version
 	};
 
-	if (debug_config.utils) {
-		const auto severity_flags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
-			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+	auto create_info = vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT, vk::ValidationFeaturesEXT>{};
 
-		const auto message_type_flags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
-			| vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
-			| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
+	create_info.get<vk::InstanceCreateInfo>() = vk::InstanceCreateInfo{
+		vk::InstanceCreateFlags{},
+		&application_info,
+		layer_data,
+		extension_data
+	};
 
-		// Instance create info structure chain
-		const auto instance_create_info = vk::StructureChain{
-			vk::InstanceCreateInfo{
-				vk::InstanceCreateFlags{},
-				&application_info,
-				instance_config.layers,
-				instance_config.extensions
-			},
-			vk::DebugUtilsMessengerCreateInfoEXT{
-				vk::DebugUtilsMessengerCreateFlagsEXT{},
-				severity_flags,
-				message_type_flags,
-				&debug::debug_utils_messenger_callback
-			}
+	if (debug_config.utils.enabled) {
+		create_info.get<vk::DebugUtilsMessengerCreateInfoEXT>() = vk::DebugUtilsMessengerCreateInfoEXT{
+			vk::DebugUtilsMessengerCreateFlagsEXT{},
+			debug_config.utils.severity_flags,
+			debug_config.utils.message_type_flags,
+			debug_config.utils.debug_callback,
+			debug_config.utils.user_data
 		};
-
-		// Create the instance
-		return vk::raii::Instance{context, instance_create_info.get<vk::InstanceCreateInfo>()};
 	}
 	else {
-		const auto instance_create_info = vk::InstanceCreateInfo{
-			vk::InstanceCreateFlags{},
-			&application_info,
-			instance_config.layers,
-			instance_config.extensions
-		};
-
-		return vk::raii::Instance{context, instance_create_info};
+		create_info.unlink<vk::DebugUtilsMessengerCreateInfoEXT>();
 	}
+
+	if (debug_config.validation.enabled) {
+		create_info.get<vk::ValidationFeaturesEXT>() = vk::ValidationFeaturesEXT{enabled_validation, disabled_validation};
+	}
+	else {
+		create_info.unlink<vk::ValidationFeaturesEXT>();
+	}
+
+	return vk::raii::Instance{context, create_info.get<vk::InstanceCreateInfo>()};
 }
 
 

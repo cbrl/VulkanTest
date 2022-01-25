@@ -33,6 +33,8 @@ import vkw;
 //     - Configurable descriptor counts with large defaults
 //     - Track free indices and assign them at resource creation
 //   - Integrate VMA
+//   - Upgrade to Vulkan 1.3 minimum
+//     - https://www.khronos.org/registry/vulkan/specs/1.3-extensions/html/chap50.html#roadmap-2022
 
 
 auto main(int argc, char** argv) -> int {
@@ -40,15 +42,11 @@ auto main(int argc, char** argv) -> int {
 	//--------------------------------------------------------------------------------
 	const auto app_info = vkw::app_info{};
 
-	const auto instance_info = vkw::instance_info{
-		.layers = {},
-		.extensions = vkw::util::get_surface_extensions()
-	};
+	const auto instance_info = vkw::instance_info{};
 
-	const auto debug_info = vkw::debug_info{
-		.utils = true,
-		.validation = true
-	};
+	auto debug_info = vkw::debug_info{};
+	debug_info.utils.enabled = true;
+	debug_info.validation.enabled = true;
 
 	auto instance = vkw::instance::create(app_info, instance_info, debug_info);
 	auto physical_device = instance->get_physical_device(0);

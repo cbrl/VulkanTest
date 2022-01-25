@@ -3,6 +3,9 @@ module;
 #include <format>
 #include <iostream>
 #include <ranges>
+#include <string_view>
+#include <unordered_set>
+#include <vector>
 
 #include <vulkan/vulkan.hpp>
 
@@ -66,15 +69,15 @@ VKAPI_ATTR auto VKAPI_CALL debug_utils_messenger_callback(
 }
 
 
-auto validate_layers(const std::vector<const char*>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
+auto validate_layers(const std::unordered_set<std::string_view>& layers, const std::vector<vk::LayerProperties>& layer_properties) -> void {
 	if (layer_properties.empty()) {
 		std::cout << "No layer properties" << std::endl;
 		throw std::runtime_error{"No layer properties"};
 	}
 
-	const auto is_invalid = [&](const char* layer) {
-		return std::ranges::all_of(layer_properties, [&](const auto& lp) {
-			return strcmp(layer, lp.layerName) != 0;
+	const auto is_invalid = [&](std::string_view layer) {
+		return std::ranges::none_of(layer_properties, [&](auto&& lp) {
+			return layer == lp.layerName;
 		});
 	};
 
@@ -95,15 +98,15 @@ auto validate_layers(const std::vector<const char*>& layers, const std::vector<v
 }
 
 
-auto validate_extensions(const std::vector<const char*>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
+auto validate_extensions(const std::unordered_set<std::string_view>& extensions, const std::vector<vk::ExtensionProperties>& ext_properties) -> void {
 	if (ext_properties.empty()) {
 		std::cout << "No extension properties" << std::endl;
 		throw std::runtime_error{"No extension properties"};
 	}
 
-	const auto is_invalid = [&](const char* extension) {
-		return std::ranges::all_of(ext_properties, [&](const auto& ep) {
-			return strcmp(extension, ep.extensionName) != 0;
+	const auto is_invalid = [&](std::string_view extension) {
+		return std::ranges::none_of(ext_properties, [&](auto&& ep) {
+			return extension == ep.extensionName;
 		});
 	};
 

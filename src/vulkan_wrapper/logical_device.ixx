@@ -6,7 +6,9 @@ module;
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -46,20 +48,17 @@ public:
 	}
 
 	[[nodiscard]]
-	auto get_extensions() const noexcept -> const std::vector<const char*>& {
+	auto get_extensions() const noexcept -> const std::unordered_set<std::string_view>& {
 		return extensions;
 	}
 
 	[[nodiscard]]
-	auto has_extension(const char* ext) const -> bool {
-		const auto it = std::ranges::find_if(extensions, [ext](const char* e) { return strcmp(e, ext) == 0; });
-		return it != extensions.end();
+	auto has_extension(std::string_view ext) const -> bool {
+		return extensions.contains(ext);
 	}
 
-	auto add_extension(const char* ext) -> void {
-		if (not has_extension(ext)) {
-			extensions.push_back(ext);
-		}
+	auto add_extension(std::string_view ext) -> void {
+		extensions.emplace(ext);
 	}
 
 	[[nodiscard]]
@@ -150,8 +149,10 @@ public:
 
 private:
 	std::shared_ptr<vk::raii::PhysicalDevice> physical_device;
+
 	vk::PhysicalDeviceFeatures features;
-	std::vector<const char*> extensions;
+	std::unordered_set<std::string_view> extensions;
+
 	std::vector<queue_family_info> queue_family_info_list;
 };
 
@@ -199,13 +200,15 @@ auto create_device(const logical_device_info& info) -> vk::raii::Device {
 		queue_create_info_list.push_back(std::move(create_info));
 	}
 
+	const auto extension_data = ranges::to<std::vector<const char*>>(info.get_extensions() | std::views::transform(&std::string_view::data));
+
 	// Create the device
 	const auto device_create_info = vk::StructureChain{
 		vk::DeviceCreateInfo{
 			vk::DeviceCreateFlags{},
 			queue_create_info_list,
 			nullptr,
-			info.get_extensions(),
+			extension_data,
 			&info.get_features()
 		},
 		vk::PhysicalDeviceDynamicRenderingFeaturesKHR{

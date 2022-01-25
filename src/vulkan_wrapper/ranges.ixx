@@ -74,11 +74,8 @@ template <class C, class R>
 concept container_convertible = !r::view<C> && r::input_range<R> && std::convertible_to<r::range_reference_t<R>, container_value_t<C>>;
 
 template <class C, class R>
-concept recursive_container_convertible = container_convertible<C, R> ||
-(r::input_range<r::range_reference_t<R>> && requires {
-    {
-        to<r::range_value_t<C>>(std::declval<r::range_reference_t<R>>())
-    } -> std::convertible_to<r::range_value_t<C>>;
+concept recursive_container_convertible = container_convertible<C, R> || (r::input_range<r::range_reference_t<R>> && requires {
+    { to<r::range_value_t<C>>(std::declval<r::range_reference_t<R>>()) } -> std::convertible_to<r::range_value_t<C>>;
 });
 
 } // namespace detail
