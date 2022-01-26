@@ -247,7 +247,10 @@ auto main(int argc, char** argv) -> int {
 
 	auto descriptor_set = descriptor_pool->allocate(descriptor_layout);
 
-	descriptor_set->update(vkw::write_buffer_set{0, {std::cref(*uniform_buffer)}});
+	descriptor_set->update(vkw::write_buffer_set{
+		.binding = 0,
+		.buffers = {std::cref(*uniform_buffer)}
+	});
 
 
 	// Shaders

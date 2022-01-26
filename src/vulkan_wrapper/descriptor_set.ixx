@@ -31,22 +31,26 @@ struct write_image_set {
 	}
 
 	uint32_t binding;
+	uint32_t array_offset = 0;
 	std::vector<std::reference_wrapper<const image_view>> image_views;
 	std::vector<vk::ImageLayout> layouts;
 };
 
 struct write_sampler_set {
 	uint32_t binding;
+	uint32_t array_offset = 0;
 	std::vector<std::reference_wrapper<const sampler>> samplers;
 };
 
 struct write_buffer_set {
 	uint32_t binding;
+	uint32_t array_offset = 0;
 	std::vector<std::reference_wrapper<const buffer<void>>> buffers;
 };
 
 struct write_texel_buffer_set {
 	uint32_t binding;
+	uint32_t array_offset = 0;
 	std::vector<std::reference_wrapper<const vk::raii::BufferView>> buffer_views;
 };
 
@@ -156,7 +160,7 @@ public:
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
 			image_set.binding,
-			0,
+			image_set.array_offset,
 			get_binding(image_set.binding).descriptorType,
 			texture_infos,
 		};
@@ -176,7 +180,7 @@ public:
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
 			sampler_set.binding,
-			0,
+			sampler_set.array_offset,
 			get_binding(sampler_set.binding).descriptorType,
 			sampler_infos,
 		};
@@ -192,7 +196,7 @@ public:
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
 			buffer_set.binding,
-			0,
+			buffer_set.array_offset,
 			get_binding(buffer_set.binding).descriptorType,
 			nullptr,
 			buffer_infos
@@ -207,7 +211,7 @@ public:
 		const auto write_descriptor_set = vk::WriteDescriptorSet{
 			*handle,
 			buffer_set.binding,
-			0,
+			buffer_set.array_offset,
 			get_binding(buffer_set.binding).descriptorType,
 			nullptr,
 			nullptr,
@@ -227,10 +231,11 @@ public:
 		write_descriptor_sets.reserve(buffer_data.size());
 
 		for (const auto& write_set : buffer_data) {
-			auto& set_info = write_descriptor_sets.emplace_back(vk::WriteDescriptorSet{*handle, 0, 0});
+			auto& set_info = write_descriptor_sets.emplace_back(vk::WriteDescriptorSet{*handle});
 
 			if (const auto* image_set = std::get_if<write_image_set>(&write_set)) {
 				set_info.setDstBinding(image_set->binding);
+				set_info.setDstArrayElement(image_set->array_offset);
 				set_info.setDescriptorType(get_binding(image_set->binding).descriptorType);
 
 				auto& info_vec = image_infos.emplace_back();
@@ -246,6 +251,7 @@ public:
 			}
 			else if (const auto* sampler_set = std::get_if<write_sampler_set>(&write_set)) {
 				set_info.setDstBinding(sampler_set->binding);
+				set_info.setDstArrayElement(sampler_set->array_offset);
 				set_info.setDescriptorType(get_binding(sampler_set->binding).descriptorType);
 
 				auto& info_vec = sampler_infos.emplace_back();
@@ -261,6 +267,7 @@ public:
 			}
 			else if (const auto* buffer_set = std::get_if<write_buffer_set>(&write_set)) {
 				set_info.setDstBinding(buffer_set->binding);
+				set_info.setDstArrayElement(buffer_set->array_offset);
 				set_info.setDescriptorType(get_binding(buffer_set->binding).descriptorType);
 
 				auto& info_vec = buffer_infos.emplace_back();
@@ -272,6 +279,7 @@ public:
 			}
 			else if (const auto* texel_buffer_set = std::get_if<write_texel_buffer_set>(&write_set)) {
 				set_info.setDstBinding(texel_buffer_set->binding);
+				set_info.setDstArrayElement(texel_buffer_set->array_offset);
 				set_info.setDescriptorType(get_binding(texel_buffer_set->binding).descriptorType);
 
 				auto& view_vec = texel_buffer_infos.emplace_back();
