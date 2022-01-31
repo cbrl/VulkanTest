@@ -179,7 +179,7 @@ public:
 	}
 
 	auto add_depth_stencil_attachment(const depth_attachment& attachment) -> void {
-		set_depth_stencil_attachment(depth_stencil_attachments.size(), attachment);
+		set_depth_stencil_attachment(static_cast<uint32_t>(depth_stencil_attachments.size()), attachment);
 	}
 
 	auto add_depth_stencil_attachments(std::span<const std::shared_ptr<image_view>> views, depth_attachment attachment) -> void {

@@ -25,7 +25,7 @@ add_subdirectory(glslang)
 # Create target
 add_executable(${PROJECT_NAME}
 	src/main.cpp
-	src/utils/utils.cpp
+	
 	src/utils/shaders.cpp
 	src/utils/math.cpp
 	src/vulkan_wrapper/vkw.ixx
@@ -51,6 +51,8 @@ add_executable(${PROJECT_NAME}
 	#src/vulkan_wrapper/texture.ixx
 	src/vulkan_wrapper/util.ixx
 	src/vulkan_wrapper/window.ixx
+	src/utils/handle.ixx
+	src/utils/handle_table.ixx
 	#src/glslang/StandAlone/ResourceLimits.cpp
 )
 

@@ -18,6 +18,12 @@ import vkw.debug;
 import vkw.util;
 
 
+// Instantiate the vulkan.hpp dispatch loader
+export {
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+}
+
+
 namespace vkw {
 
 namespace util {
