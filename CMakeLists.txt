@@ -25,7 +25,7 @@ add_subdirectory(glslang)
 # Create target
 add_executable(${PROJECT_NAME}
 	src/main.cpp
-	
+	src/testing.cpp
 	src/utils/shaders.cpp
 	src/utils/math.cpp
 	src/vulkan_wrapper/vkw.ixx
