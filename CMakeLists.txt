@@ -11,8 +11,8 @@ set(VULKAN_SDK_INCLUDE_DIRS $ENV{VULKAN_SDK}/Include)
 
 # Release/Debug options
 if (MSVC)
-	set(DEBUG_OPTIONS /W4 /Od)
-	set(RELEASE_OPTIONS /W4 /O2 /DNDEBUG)
+	set(DEBUG_OPTIONS /W3 /Od)
+	set(RELEASE_OPTIONS /W3 /O2 /DNDEBUG)
 	set(DEFINES NOMINMAX VK_USE_PLATFORM_WIN32_KHR)
 else()
 	set(DEBUG_OPTIONS -Wall -Wextra -O0 -g)
@@ -25,7 +25,7 @@ add_subdirectory(glslang)
 # Create target
 add_executable(${PROJECT_NAME}
 	src/main.cpp
-	src/testing.cpp
+	#src/testing.cpp
 	src/utils/shaders.cpp
 	src/utils/math.cpp
 	src/vulkan_wrapper/vkw.ixx

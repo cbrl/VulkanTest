@@ -25,6 +25,18 @@
 
 import vkw;
 
+
+// TODO:
+//   - Add buffer_view class to encapsulate vk::raii::BufferView
+//   - Use descriptor indexing (core in Vulkan 1.2)
+//     - Single descriptor_set allocated from a single descriptor_pool
+//     - Configurable descriptor counts with large defaults
+//     - Track free indices and assign them at resource creation
+//   - Integrate VMA
+//   - Upgrade to Vulkan 1.3 minimum
+//     - https://www.khronos.org/registry/vulkan/specs/1.3-extensions/html/chap50.html#roadmap-2022
+
+
 auto main(int argc, char** argv) -> int {
 	// Instance
 	//--------------------------------------------------------------------------------
@@ -68,7 +80,7 @@ auto main(int argc, char** argv) -> int {
 
 	auto present_queue_family = std::optional<uint32_t>{};
 
-	// Check if the graphics queue supports present	
+	// Check if the graphics queue supports present
 	if (physical_device->getSurfaceSupportKHR(*graphics_queue_family, *window->get_vk_handle())) {
 		present_queue_family = graphics_queue_family;
 	}
@@ -160,7 +172,7 @@ auto main(int argc, char** argv) -> int {
 			vk::ImageLayout::ePresentSrcKHR
 		}
 	);
-	
+
 	pass_info.attachment_descriptions.push_back( //depth attachment
 		vk::AttachmentDescription{
 			vk::AttachmentDescriptionFlags{},
@@ -311,7 +323,7 @@ auto main(int argc, char** argv) -> int {
 			| vk::ColorComponentFlagBits::eA
 		}
 	);
-	
+
 
 	// Create the pipeline
 	auto pipeline = vkw::graphics_pipeline::create(logical_device, pipeline_info, &cache);

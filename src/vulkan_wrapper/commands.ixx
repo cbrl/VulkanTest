@@ -77,6 +77,14 @@ public:
 		command_func = function;
 	}
 
+	auto run_command(uint32_t frame, const vk::CommandBufferBeginInfo& begin_info) const -> void {
+		const auto& buffer = buffers.at(frame);
+
+		buffer.begin(begin_info);
+		command_func(buffer);
+		buffer.end();
+	}
+
 private:
 	std::function<void(const vk::raii::CommandBuffer&)> command_func;
 	std::vector<vk::raii::CommandBuffer> buffers;
@@ -134,15 +142,10 @@ public:
 	auto run_commands(uint32_t frame) -> void {
 		pools.at(frame).reset(vk::CommandPoolResetFlags{});
 
+		const auto begin_info = vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
+
 		for (auto& cmd : commands) {
-			auto& buffer = cmd.get_vk_handle(frame);
-
-			const auto begin_info = vk::CommandBufferBeginInfo{vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
-			buffer.begin(begin_info);
-
-			cmd.get_function()(buffer);
-
-			buffer.end();
+			cmd.run_command(frame, begin_info);
 		}
 	}
 

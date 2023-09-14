@@ -67,7 +67,7 @@ export struct app_info {
 	uint32_t engine_version_minor = 0;
 	uint32_t engine_vesrion_patch = 0;
 
-	uint32_t api_version = VK_API_VERSION_1_2;
+	uint32_t api_version = VK_API_VERSION_1_3;
 };
 
 export struct instance_info {

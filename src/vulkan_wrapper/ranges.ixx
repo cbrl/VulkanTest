@@ -115,7 +115,7 @@ concept reservable_container = requires(T& c) {
 };
 
 template <typename T>
-concept insertable_container = requires(T& c, T::value_type& e) {
+concept insertable_container = requires(T& c, typename T::value_type& e) {
     c.insert(c.end(), e);
 };
 

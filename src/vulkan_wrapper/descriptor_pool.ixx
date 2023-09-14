@@ -97,7 +97,7 @@ public:
 
 		const auto allocate_info = vk::DescriptorSetAllocateInfo{*pool, vk_layouts};
 		auto sets = vk::raii::DescriptorSets{device->get_vk_handle(), allocate_info};
-		
+
 		auto result = std::vector<std::shared_ptr<descriptor_set>>{};
 		result.reserve(sets.size());
 
@@ -111,7 +111,7 @@ public:
 private:
 
 	std::shared_ptr<logical_device> device;
-	
+
 	std::vector<vk::DescriptorPoolSize> sizes;
 	uint32_t max = 0;
 

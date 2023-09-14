@@ -17,17 +17,14 @@ export import vkw.ranges;
 
 
 template<typename T>
-concept smart_pointer = requires {
-	requires
-		requires { typename T::element_type; }
-		&& requires(T v) { v.get(); std::is_pointer_v<decltype(v.get())>; }
-		&& requires(T v) { *v; std::same_as<std::remove_cvref_t<decltype(*v)>, std::remove_cvref_t<typename T::element_type>>; };
-};
+concept smart_pointer = requires { typename T::element_type; }
+	&& requires(T v) { v.get(); requires std::is_pointer_v<decltype(v.get())>; }
+	&& requires(T v) { *v; requires std::same_as<std::remove_cvref_t<decltype(*v)>, std::remove_cvref_t<typename T::element_type>>; };
 
 template<typename T>
 concept raw_pointer = requires(T v) {
 	requires std::is_pointer_v<T>;
-	std::same_as<std::remove_cvref_t<decltype(*v)>, std::remove_cvref_t<typename std::pointer_traits<T>::element_type>>;
+	requires std::same_as<std::remove_cvref_t<decltype(*v)>, std::remove_cvref_t<typename std::pointer_traits<T>::element_type>>;
 };
 
 template<typename T>
@@ -38,7 +35,7 @@ concept ref_wrapper = requires(T v) {
 	typename decltype(v)::type;
 	v.get();
 	requires std::is_reference_v<decltype(v.get())>;
-	std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename decltype(v)::type>>;
+	requires std::same_as<std::remove_cvref_t<decltype(v.get())>, std::remove_cvref_t<typename decltype(v)::type>>;
 };
 
 template<typename T>

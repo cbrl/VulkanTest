@@ -9,20 +9,11 @@
 #include <thread>
 #include <vector>
 
+#include <vulkan/vulkan_raii.hpp>
+
 import vkw;
 import utils.handle;
 import utils.handle_table;
-
-
-// TODO:
-//   - Add buffer_view class to encapsulate vk::raii::BufferView
-//   - Use descriptor indexing (core in Vulkan 1.2)
-//     - Single descriptor_set allocated from a single descriptor_pool
-//     - Configurable descriptor counts with large defaults
-//     - Track free indices and assign them at resource creation
-//   - Integrate VMA
-//   - Upgrade to Vulkan 1.3 minimum
-//     - https://www.khronos.org/registry/vulkan/specs/1.3-extensions/html/chap50.html#roadmap-2022
 
 
 template<typename ResourceT>
@@ -289,10 +280,16 @@ public:
 		std::shared_ptr<vkw::image_view> normal;
 		std::shared_ptr<vkw::image_view> emissive;
 	} maps;
+
+	std::shared_ptr<vkw::pipeline> pipeline;
+
+	//dynamic states
 };
 
 class model {
-	//name
-	//mesh
-	//material
+	std::string name;
+	std::shared_ptr<mesh> mesh;
+	std::shared_ptr<material> material;
+	//bounding volumes
 };
+

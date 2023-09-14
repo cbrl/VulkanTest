@@ -163,6 +163,7 @@ auto process_config(const logical_device_info& info) -> logical_device_info {
 
 	output.add_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	output.add_extension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME); //dynamic rendering required by render_pass_single
+	output.add_extension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
 	output.get_features().samplerAnisotropy = VK_TRUE;
 
@@ -211,7 +212,29 @@ auto create_device(const logical_device_info& info) -> vk::raii::Device {
 			extension_data,
 			&info.get_features()
 		},
-		vk::PhysicalDeviceDynamicRenderingFeaturesKHR{
+		vk::PhysicalDeviceDescriptorIndexingFeatures{
+			VK_TRUE, //shaderInputAttachmentArrayDynamicIndexing
+			VK_TRUE, //shaderUniformTexelBufferArrayDynamicIndexing
+			VK_TRUE, //shaderStorageTexelBufferArrayDynamicIndexing
+			VK_TRUE, //shaderUniformBufferArrayNonUniformIndexing
+			VK_TRUE, //shaderSampledImageArrayNonUniformIndexing
+			VK_TRUE, //shaderStorageBufferArrayNonUniformIndexing
+			VK_TRUE, //shaderStorageImageArrayNonUniformIndexing
+			VK_TRUE, //shaderInputAttachmentArrayNonUniformIndexing
+			VK_TRUE, //shaderUniformTexelBufferArrayNonUniformIndexing
+			VK_TRUE, //shaderStorageTexelBufferArrayNonUniformIndexing
+			VK_TRUE, //descriptorBindingUniformBufferUpdateAfterBind
+			VK_TRUE, //descriptorBindingSampledImageUpdateAfterBind
+			VK_TRUE, //descriptorBindingStorageImageUpdateAfterBind
+			VK_TRUE, //descriptorBindingStorageBufferUpdateAfterBind
+			VK_TRUE, //descriptorBindingUniformTexelBufferUpdateAfterBind
+			VK_TRUE, //descriptorBindingStorageTexelBufferUpdateAfterBind
+			VK_TRUE, //descriptorBindingUpdateUnusedWhilePending
+			VK_TRUE, //descriptorBindingPartiallyBound
+			VK_TRUE, //descriptorBindingVariableDescriptorCount
+			VK_TRUE, //runtimeDescriptorArray
+		},
+		vk::PhysicalDeviceDynamicRenderingFeatures{
 			VK_TRUE
 		}
 	};
@@ -238,7 +261,7 @@ public:
 
 			for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
 				auto& new_queue = queues.emplace_back(device, family.family_idx, queue_idx);
-				queue_map[static_cast<vk::QueueFlags>(flag_mask)].push_back(std::ref(new_queue));
+				queue_map[flag_mask].push_back(std::ref(new_queue));
 			}
 		}
 
@@ -263,7 +286,7 @@ public:
 				}
 
 				for (auto queue_idx : std::views::iota(uint32_t{0}, family.queues.size())) {
-					queue_map[static_cast<vk::QueueFlags>(mask)].push_back(queue_map[flags].at(queue_idx));
+					queue_map[mask].push_back(queue_map[static_cast<vk::QueueFlags::MaskType>(flags)].at(queue_idx));
 				}
 			}
 		}
@@ -286,12 +309,12 @@ public:
 
 	[[nodiscard]]
 	auto get_queue(vk::QueueFlags flag, uint32_t queue_idx) const -> std::shared_ptr<queue> {
-		return std::shared_ptr<queue>{shared_from_this(), &queue_map[flag].at(queue_idx).get()};
+		return std::shared_ptr<queue>{shared_from_this(), &queue_map[static_cast<vk::QueueFlags::MaskType>(flag)].at(queue_idx).get()};
 	}
 
 	[[nodiscard]]
 	auto get_queues(vk::QueueFlags flag) const -> std::vector<std::shared_ptr<queue>> {
-		return ranges::to<std::vector>(std::views::transform(queue_map[flag], [this](queue& q) {
+		return ranges::to<std::vector>(std::views::transform(queue_map[static_cast<vk::QueueFlags::MaskType>(flag)], [this](queue& q) {
 			return std::shared_ptr<queue>{shared_from_this(), &q};
 		}));
 	}
@@ -338,7 +361,7 @@ private:
 	// Mappings to every queue from each combination of their flags. E.g. a Graphics/Compute/Transfer queue will be
 	// mapped to each combination of those 3 types. std::vector doesn't invalidate pointers on move, so storing
 	// pointers to the queues will be fine if an instance of this class is moved.
-	mutable std::unordered_map<vk::QueueFlags, std::vector<std::reference_wrapper<queue>>> queue_map;
+	mutable std::unordered_map<vk::QueueFlags::MaskType, std::vector<std::reference_wrapper<queue>>> queue_map;
 };
 
 } //namespace vkw
